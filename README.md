@@ -1,2 +1,2335 @@
-# MLB-Stats-Model
-FBGM
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="description" content="MLB Stats Model 2026 — live power rankings, matchup simulator & betting lines"/>
+  <title>MLB Stats Model 2026</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body,#root{height:100%}
+    body{background:#141414;color:#f0ece0;font-family:'Helvetica Neue',Arial,sans-serif;-webkit-text-size-adjust:100%}
+    select,button,input{-webkit-appearance:none;appearance:none}
+    /* scrollbar */
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:#1c1c1c}
+    ::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:3px}
+  </style>
+</head>
+<body>
+<div id="root">
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:1rem;color:#888">
+    <div style="font-size:0.8rem;letter-spacing:0.15em">LOADING MLB STATS MODEL...</div>
+  </div>
+</div>
+
+<!-- React + ReactDOM via CDN -->
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Babel standalone for JSX transpilation -->
+
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+
+<script>
+// ─── API KEY MANAGEMENT ────────────────────────────────────────────────────
+const API_KEY_STORAGE = 'mlb_anthropic_key';
+
+function getApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE) || '';
+}
+
+function ApiKeyGate({ onKeySet }) {
+  const { useState } = React;
+  const [val, setVal] = React.useState('');
+  const [err, setErr] = React.useState('');
+  const [testing, setTesting] = React.useState(false);
+
+  async function handleSubmit() {
+    const key = val.trim();
+    if (!key.startsWith('sk-ant-')) {
+      setErr('Key should start with sk-ant-');
+      return;
+    }
+    setTesting(true); setErr('');
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 5,
+          messages: [{ role: 'user', content: 'hi' }],
+        }),
+      });
+      if (r.status === 401) { setErr('Invalid API key — check and try again'); setTesting(false); return; }
+      if (!r.ok && r.status !== 200) { setErr('API error ' + r.status); setTesting(false); return; }
+      localStorage.setItem(API_KEY_STORAGE, key);
+      onKeySet(key);
+    } catch(e) {
+      setErr('Network error: ' + e.message);
+    }
+    setTesting(false);
+  }
+
+  const C = { bg:'#141414', surface:'#1c1c1c', border:'#2a2a2a', gold:'#c9a84c', text:'#f0ece0', muted:'#888880', red:'#e06060' };
+
+  return React.createElement('div', {
+    style: { display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:C.bg, padding:'1.5rem' }
+  },
+    React.createElement('div', {
+      style: { maxWidth:440, width:'100%', background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:'2rem', boxShadow:'0 8px 32px rgba(0,0,0,0.4)' }
+    },
+      React.createElement('div', { style:{ fontSize:'0.6rem', letterSpacing:'0.2em', color:C.gold, marginBottom:'0.5rem' } }, 'MLB STATS MODEL 2026'),
+      React.createElement('h1', { style:{ fontSize:'1.4rem', fontWeight:'bold', color:C.text, marginBottom:'0.5rem' } }, 'Enter your Anthropic API Key'),
+      React.createElement('p', { style:{ fontSize:'0.82rem', color:C.muted, lineHeight:1.7, marginBottom:'1.5rem' } },
+        'This app uses Claude to fetch live MLB scores and generate AI analysis. Your key is stored only in this browser — never sent anywhere except directly to Anthropic.'
+      ),
+      React.createElement('a', {
+        href:'https://console.anthropic.com/settings/keys',
+        target:'_blank',
+        rel:'noopener',
+        style:{ display:'block', fontSize:'0.75rem', color:C.gold, marginBottom:'1.25rem', textDecoration:'none' }
+      }, '→ Get a key at console.anthropic.com'),
+      React.createElement('input', {
+        type: 'password',
+        placeholder: 'sk-ant-...',
+        value: val,
+        onChange: e => setVal(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && handleSubmit(),
+        style: {
+          width:'100%', padding:'0.65rem 0.85rem', background:C.bg, border:`1px solid ${err ? C.red : C.border}`,
+          borderRadius:4, color:C.text, fontSize:'0.9rem', fontFamily:'monospace', outline:'none',
+          marginBottom:'0.75rem', display:'block'
+        }
+      }),
+      err && React.createElement('div', { style:{ color:C.red, fontSize:'0.78rem', marginBottom:'0.75rem' } }, err),
+      React.createElement('button', {
+        onClick: handleSubmit,
+        disabled: testing || !val.trim(),
+        style: {
+          width:'100%', padding:'0.65rem', background: testing || !val.trim() ? '#333' : C.gold,
+          border:'none', borderRadius:4, color: testing || !val.trim() ? C.muted : '#111',
+          fontWeight:'bold', fontSize:'0.85rem', cursor: testing || !val.trim() ? 'default' : 'pointer',
+          letterSpacing:'0.08em', fontFamily:'inherit', transition:'all 0.15s'
+        }
+      }, testing ? 'VERIFYING...' : 'ACTIVATE'),
+      React.createElement('p', { style:{ fontSize:'0.68rem', color:C.muted, marginTop:'1rem', lineHeight:1.6 } },
+        'Your key is saved in localStorage so you only enter it once per browser. To change it, open the settings menu inside the app.'
+      )
+    )
+  );
+}
+
+// ─── BOOTSTRAP ────────────────────────────────────────────────────────────
+function Bootstrap() {
+  const [apiKey, setApiKey] = React.useState(() => localStorage.getItem(API_KEY_STORAGE) || '');
+
+  if (!apiKey) {
+    return React.createElement(ApiKeyGate, { onKeySet: setApiKey });
+  }
+  return React.createElement(App);
+}
+
+// render Bootstrap first — App defined below after Babel compiles it
+window.__mlbBootstrap = Bootstrap;
+</script>
+
+<script type="text/babel" data-presets="react">
+// ─── REACT HOOKS (from CDN global) ────────────────────────────────────────
+const { useState, useMemo, useEffect, useCallback, createContext, useContext } = React;
+
+
+// ---------------------------------------------------------------------------
+// localStorage shim — replaces window.storage (Claude artifact API).
+// Synchronous under the hood; wrapped to match the async call-sites.
+// ---------------------------------------------------------------------------
+function localGet(key) {
+  try {
+    const v = localStorage.getItem(key);
+    return v != null ? { key, value: v } : null;
+  } catch { return null; }
+}
+function localSet(key, value) {
+  try { localStorage.setItem(key, value); return { key, value }; } catch { return null; }
+}
+// ---------------------------------------------------------------------------
+
+const C = {
+  bg:"#141414", surface:"#1c1c1c", border:"#2a2a2a",
+  gold:"#c9a84c", goldLight:"#e0c06a", text:"#f0ece0",
+  muted:"#888880", dim:"#555550", header:"#0f0f0f",
+  green:"#5dc87a", red:"#e06060",
+};
+
+const LiveContext = createContext(null);
+function useLive() { return useContext(LiveContext); }
+
+const BASELINE = [
+  { id:"LAD", name:"Los Angeles Dodgers",   div:"NL West",   color:"#005A9C", runsFor:5.38, runsAgainst:3.61, winPct:0.635, margin:1.77, obp:0.345, slg:0.462, ops:0.807, era:3.28, whip:1.14, kPer9:9.9, bbPer9:2.8, hrAllowed:1.08, babip:0.290, fip:3.41, xfip:3.48, lob:74.1, gsQS:0.528, spRating:9.55, offRating:9.41, defRating:9.78, powRating:9.58 },
+  { id:"NYY", name:"New York Yankees",       div:"AL East",   color:"#003087", runsFor:5.08, runsAgainst:3.74, winPct:0.599, margin:1.34, obp:0.338, slg:0.451, ops:0.789, era:3.48, whip:1.18, kPer9:9.7, bbPer9:2.9, hrAllowed:1.13, babip:0.287, fip:3.58, xfip:3.65, lob:73.9, gsQS:0.524, spRating:9.11, offRating:8.88, defRating:9.01, powRating:8.97 },
+  { id:"ATL", name:"Atlanta Braves",         div:"NL East",   color:"#CE1141", runsFor:4.91, runsAgainst:3.94, winPct:0.581, margin:0.97, obp:0.336, slg:0.445, ops:0.781, era:3.71, whip:1.23, kPer9:9.3, bbPer9:3.2, hrAllowed:1.19, babip:0.294, fip:3.81, xfip:3.84, lob:71.8, gsQS:0.494, spRating:8.81, offRating:8.68, defRating:8.62, powRating:8.70 },
+  { id:"HOU", name:"Houston Astros",         div:"AL West",   color:"#002D62", runsFor:4.78, runsAgainst:3.79, winPct:0.574, margin:0.99, obp:0.330, slg:0.438, ops:0.768, era:3.58, whip:1.20, kPer9:9.1, bbPer9:2.9, hrAllowed:1.12, babip:0.285, fip:3.65, xfip:3.72, lob:73.8, gsQS:0.528, spRating:8.72, offRating:8.38, defRating:8.84, powRating:8.64 },
+  { id:"BAL", name:"Baltimore Orioles",      div:"AL East",   color:"#DF4601", runsFor:5.01, runsAgainst:3.95, winPct:0.578, margin:1.06, obp:0.337, slg:0.452, ops:0.789, era:3.74, whip:1.24, kPer9:9.0, bbPer9:3.1, hrAllowed:1.18, babip:0.291, fip:3.82, xfip:3.88, lob:72.1, gsQS:0.496, spRating:8.48, offRating:8.81, defRating:8.41, powRating:8.57 },
+  { id:"PHI", name:"Philadelphia Phillies",  div:"NL East",   color:"#E81828", runsFor:4.94, runsAgainst:3.88, winPct:0.576, margin:1.06, obp:0.334, slg:0.444, ops:0.778, era:3.66, whip:1.24, kPer9:9.6, bbPer9:3.2, hrAllowed:1.19, babip:0.292, fip:3.75, xfip:3.80, lob:71.8, gsQS:0.501, spRating:8.81, offRating:8.61, defRating:8.44, powRating:8.62 },
+  { id:"SEA", name:"Seattle Mariners",       div:"AL West",   color:"#0C2C56", runsFor:4.62, runsAgainst:3.68, winPct:0.558, margin:0.94, obp:0.324, slg:0.418, ops:0.742, era:3.44, whip:1.19, kPer9:10.1, bbPer9:3.0, hrAllowed:1.05, babip:0.281, fip:3.52, xfip:3.58, lob:74.2, gsQS:0.532, spRating:8.55, offRating:8.02, defRating:8.94, powRating:8.50 },
+  { id:"TOR", name:"Toronto Blue Jays",      div:"AL East",   color:"#134A8E", runsFor:4.88, runsAgainst:3.91, winPct:0.568, margin:0.97, obp:0.331, slg:0.438, ops:0.769, era:3.72, whip:1.26, kPer9:8.9, bbPer9:3.1, hrAllowed:1.20, babip:0.290, fip:3.81, xfip:3.86, lob:71.4, gsQS:0.488, spRating:8.38, offRating:8.51, defRating:8.22, powRating:8.37 },
+  { id:"MIL", name:"Milwaukee Brewers",      div:"NL Central",color:"#12284B", runsFor:4.51, runsAgainst:3.88, winPct:0.543, margin:0.63, obp:0.322, slg:0.418, ops:0.740, era:3.71, whip:1.22, kPer9:9.6, bbPer9:3.1, hrAllowed:1.10, babip:0.284, fip:3.78, xfip:3.83, lob:72.8, gsQS:0.511, spRating:8.11, offRating:7.88, defRating:8.51, powRating:8.17 },
+  { id:"SDP", name:"San Diego Padres",       div:"NL West",   color:"#2F241D", runsFor:4.78, runsAgainst:3.88, winPct:0.558, margin:0.90, obp:0.330, slg:0.434, ops:0.764, era:3.68, whip:1.23, kPer9:9.4, bbPer9:3.0, hrAllowed:1.11, babip:0.287, fip:3.76, xfip:3.81, lob:72.8, gsQS:0.508, spRating:8.51, offRating:8.34, defRating:8.38, powRating:8.41 },
+  { id:"DET", name:"Detroit Tigers",         div:"AL Central",color:"#0C2340", runsFor:4.51, runsAgainst:3.84, winPct:0.531, margin:0.67, obp:0.318, slg:0.405, ops:0.723, era:3.61, whip:1.24, kPer9:9.1, bbPer9:3.0, hrAllowed:1.14, babip:0.283, fip:3.69, xfip:3.74, lob:72.1, gsQS:0.501, spRating:8.21, offRating:7.78, defRating:8.41, powRating:8.13 },
+  { id:"CHC", name:"Chicago Cubs",           div:"NL Central",color:"#0E3386", runsFor:4.84, runsAgainst:4.08, winPct:0.543, margin:0.76, obp:0.330, slg:0.438, ops:0.768, era:3.88, whip:1.28, kPer9:9.0, bbPer9:3.3, hrAllowed:1.24, babip:0.292, fip:3.96, xfip:4.00, lob:71.2, gsQS:0.478, spRating:7.88, offRating:8.38, defRating:7.91, powRating:8.06 },
+  { id:"TEX", name:"Texas Rangers",          div:"AL West",   color:"#003278", runsFor:4.78, runsAgainst:4.18, winPct:0.519, margin:0.60, obp:0.332, slg:0.441, ops:0.773, era:3.98, whip:1.30, kPer9:8.7, bbPer9:3.4, hrAllowed:1.26, babip:0.294, fip:4.06, xfip:4.10, lob:70.8, gsQS:0.471, spRating:7.88, offRating:8.34, defRating:7.78, powRating:8.00 },
+  { id:"KCR", name:"Kansas City Royals",     div:"AL Central",color:"#004687", runsFor:4.68, runsAgainst:4.11, winPct:0.518, margin:0.57, obp:0.325, slg:0.421, ops:0.746, era:3.91, whip:1.28, kPer9:8.6, bbPer9:3.4, hrAllowed:1.23, babip:0.291, fip:3.99, xfip:4.03, lob:71.1, gsQS:0.474, spRating:7.48, offRating:8.11, defRating:7.51, powRating:7.71 },
+  { id:"CLE", name:"Cleveland Guardians",    div:"AL Central",color:"#00385D", runsFor:4.48, runsAgainst:3.98, winPct:0.512, margin:0.50, obp:0.319, slg:0.408, ops:0.727, era:3.78, whip:1.24, kPer9:8.9, bbPer9:3.0, hrAllowed:1.12, babip:0.283, fip:3.86, xfip:3.91, lob:73.1, gsQS:0.491, spRating:7.84, offRating:7.81, defRating:7.98, powRating:7.88 },
+  { id:"SFG", name:"San Francisco Giants",   div:"NL West",   color:"#FD5A1E", runsFor:4.58, runsAgainst:4.08, winPct:0.512, margin:0.50, obp:0.322, slg:0.414, ops:0.736, era:3.88, whip:1.27, kPer9:9.1, bbPer9:3.1, hrAllowed:1.17, babip:0.284, fip:3.96, xfip:4.01, lob:72.2, gsQS:0.481, spRating:7.74, offRating:7.88, defRating:7.98, powRating:7.87 },
+  { id:"BOS", name:"Boston Red Sox",         div:"AL East",   color:"#BD3039", runsFor:4.78, runsAgainst:4.28, winPct:0.512, margin:0.50, obp:0.329, slg:0.432, ops:0.761, era:4.08, whip:1.32, kPer9:8.8, bbPer9:3.4, hrAllowed:1.28, babip:0.296, fip:4.16, xfip:4.20, lob:70.1, gsQS:0.461, spRating:7.58, offRating:8.28, defRating:7.31, powRating:7.72 },
+  { id:"NYM", name:"New York Mets",          div:"NL East",   color:"#002D72", runsFor:4.61, runsAgainst:4.21, winPct:0.506, margin:0.40, obp:0.324, slg:0.421, ops:0.745, era:4.01, whip:1.30, kPer9:9.2, bbPer9:3.4, hrAllowed:1.24, babip:0.291, fip:4.09, xfip:4.13, lob:70.6, gsQS:0.461, spRating:7.58, offRating:8.01, defRating:7.54, powRating:7.72 },
+  { id:"MIN", name:"Minnesota Twins",        div:"AL Central",color:"#002B5C", runsFor:4.44, runsAgainst:4.18, winPct:0.494, margin:0.26, obp:0.321, slg:0.412, ops:0.733, era:3.98, whip:1.28, kPer9:9.1, bbPer9:3.2, hrAllowed:1.20, babip:0.286, fip:4.06, xfip:4.10, lob:71.4, gsQS:0.468, spRating:7.61, offRating:7.71, defRating:7.68, powRating:7.67 },
+  { id:"ARI", name:"Arizona Diamondbacks",   div:"NL West",   color:"#A71930", runsFor:4.71, runsAgainst:4.24, winPct:0.498, margin:0.47, obp:0.328, slg:0.430, ops:0.758, era:4.04, whip:1.32, kPer9:9.0, bbPer9:3.5, hrAllowed:1.28, babip:0.294, fip:4.12, xfip:4.16, lob:70.1, gsQS:0.454, spRating:7.48, offRating:8.18, defRating:7.38, powRating:7.68 },
+  { id:"TBR", name:"Tampa Bay Rays",         div:"AL East",   color:"#092C5C", runsFor:4.31, runsAgainst:4.08, winPct:0.481, margin:0.23, obp:0.314, slg:0.396, ops:0.710, era:3.88, whip:1.26, kPer9:9.4, bbPer9:3.1, hrAllowed:1.11, babip:0.282, fip:3.94, xfip:3.99, lob:72.8, gsQS:0.484, spRating:7.38, offRating:7.44, defRating:7.88, powRating:7.57 },
+  { id:"STL", name:"St. Louis Cardinals",    div:"NL Central",color:"#C41E3A", runsFor:4.41, runsAgainst:4.28, winPct:0.481, margin:0.13, obp:0.318, slg:0.404, ops:0.722, era:4.08, whip:1.31, kPer9:8.6, bbPer9:3.3, hrAllowed:1.24, babip:0.289, fip:4.16, xfip:4.20, lob:70.4, gsQS:0.454, spRating:7.48, offRating:7.68, defRating:7.48, powRating:7.55 },
+  { id:"MIA", name:"Miami Marlins",          div:"NL East",   color:"#00A3E0", runsFor:4.08, runsAgainst:4.11, winPct:0.469, margin:-0.03, obp:0.308, slg:0.376, ops:0.684, era:3.91, whip:1.29, kPer9:9.1, bbPer9:3.3, hrAllowed:1.14, babip:0.283, fip:3.98, xfip:4.03, lob:71.8, gsQS:0.471, spRating:7.24, offRating:7.01, defRating:7.51, powRating:7.25 },
+  { id:"WSN", name:"Washington Nationals",   div:"NL East",   color:"#AB0003", runsFor:4.18, runsAgainst:4.38, winPct:0.444, margin:-0.20, obp:0.311, slg:0.384, ops:0.695, era:4.18, whip:1.32, kPer9:8.2, bbPer9:3.4, hrAllowed:1.23, babip:0.287, fip:4.26, xfip:4.30, lob:70.1, gsQS:0.454, spRating:6.88, offRating:7.21, defRating:7.21, powRating:7.10 },
+  { id:"PIT", name:"Pittsburgh Pirates",     div:"NL Central",color:"#FDB827", runsFor:4.08, runsAgainst:4.21, winPct:0.444, margin:-0.13, obp:0.305, slg:0.372, ops:0.677, era:4.01, whip:1.31, kPer9:8.7, bbPer9:3.3, hrAllowed:1.22, babip:0.287, fip:4.09, xfip:4.13, lob:70.8, gsQS:0.461, spRating:7.11, offRating:7.01, defRating:7.18, powRating:7.10 },
+  { id:"LAA", name:"Los Angeles Angels",     div:"AL West",   color:"#BA0021", runsFor:4.38, runsAgainst:4.61, winPct:0.432, margin:-0.23, obp:0.315, slg:0.398, ops:0.713, era:4.41, whip:1.36, kPer9:8.1, bbPer9:3.8, hrAllowed:1.40, babip:0.298, fip:4.49, xfip:4.52, lob:68.6, gsQS:0.428, spRating:6.74, offRating:7.54, defRating:6.58, powRating:6.96 },
+  { id:"CIN", name:"Cincinnati Reds",        div:"NL Central",color:"#C6011F", runsFor:4.61, runsAgainst:4.78, winPct:0.432, margin:-0.17, obp:0.319, slg:0.412, ops:0.731, era:4.58, whip:1.40, kPer9:8.9, bbPer9:3.8, hrAllowed:1.44, babip:0.302, fip:4.65, xfip:4.68, lob:67.8, gsQS:0.418, spRating:6.61, offRating:7.88, defRating:6.38, powRating:6.96 },
+  { id:"COL", name:"Colorado Rockies",       div:"NL West",   color:"#33006F", runsFor:4.71, runsAgainst:5.61, winPct:0.358, margin:-0.90, obp:0.321, slg:0.416, ops:0.737, era:5.38, whip:1.54, kPer9:7.7, bbPer9:4.2, hrAllowed:1.74, babip:0.319, fip:5.44, xfip:5.48, lob:65.1, gsQS:0.331, spRating:4.71, offRating:8.04, defRating:3.88, powRating:5.88 },
+  { id:"CWS", name:"Chicago White Sox",      div:"AL Central",color:"#27251F", runsFor:3.78, runsAgainst:5.24, winPct:0.340, margin:-1.46, obp:0.296, slg:0.356, ops:0.652, era:5.04, whip:1.48, kPer9:8.0, bbPer9:4.1, hrAllowed:1.61, babip:0.314, fip:5.11, xfip:5.16, lob:66.4, gsQS:0.344, spRating:4.98, offRating:6.28, defRating:5.18, powRating:5.81 },
+  { id:"OAK", name:"Oakland Athletics",      div:"AL West",   color:"#003831", runsFor:3.68, runsAgainst:5.08, winPct:0.327, margin:-1.40, obp:0.292, slg:0.344, ops:0.636, era:4.91, whip:1.46, kPer9:7.9, bbPer9:4.3, hrAllowed:1.54, babip:0.310, fip:4.98, xfip:5.03, lob:67.1, gsQS:0.354, spRating:4.88, offRating:6.08, defRating:5.31, powRating:5.59 },
+];
+
+const SEED_GAMES = [
+  {id:"g1", status:"closed",     home:"PIT", away:"BOS", hScore:3,  aScore:6,  start_time:"2026-03-22T17:05:00Z"},
+  {id:"g2", status:"closed",     home:"NYY", away:"PHI", hScore:6,  aScore:2,  start_time:"2026-03-22T17:05:00Z"},
+  {id:"g3", status:"closed",     home:"MIN", away:"ATL", hScore:7,  aScore:3,  start_time:"2026-03-22T17:05:00Z"},
+  {id:"g4", status:"closed",     home:"TOR", away:"TBR", hScore:14, aScore:1,  start_time:"2026-03-22T17:07:00Z"},
+  {id:"g5", status:"closed",     home:"MIA", away:"NYM", hScore:4,  aScore:3,  start_time:"2026-03-22T17:10:00Z"},
+  {id:"g6", status:"closed",     home:"BAL", away:"WSN", hScore:8,  aScore:1,  start_time:"2026-03-22T17:35:00Z"},
+  {id:"g7", status:"closed",     home:"CHC", away:"MIL", hScore:12, aScore:0,  start_time:"2026-03-22T19:05:00Z"},
+  {id:"g8", status:"closed",     home:"CLE", away:"CIN", hScore:8,  aScore:2,  start_time:"2026-03-22T19:05:00Z"},
+  {id:"g9", status:"closed",     home:"COL", away:"OAK", hScore:6,  aScore:5,  start_time:"2026-03-22T20:10:00Z"},
+  {id:"g10",status:"closed",     home:"CWS", away:"SEA", hScore:2,  aScore:4,  start_time:"2026-03-23T01:05:00Z"},
+  {id:"g11",status:"closed",     home:"LAA", away:"LAD", hScore:5,  aScore:13, start_time:"2026-03-23T01:07:00Z"},
+  {id:"g12",status:"closed",     home:"SDP", away:"ARI", hScore:1,  aScore:11, start_time:"2026-03-23T01:10:00Z"},
+  {id:"g13",status:"closed",     home:"PHI", away:"TBR", hScore:0,  aScore:7,  start_time:"2026-03-23T16:05:00Z"},
+  {id:"g14",status:"closed",     home:"PIT", away:"ATL", hScore:2,  aScore:5,  start_time:"2026-03-23T17:05:00Z"},
+  {id:"g15",status:"closed",     home:"WSN", away:"BAL", hScore:0,  aScore:2,  start_time:"2026-03-23T17:05:00Z"},
+  {id:"g16",status:"closed",     home:"BOS", away:"MIN", hScore:6,  aScore:9,  start_time:"2026-03-23T17:05:00Z"},
+  {id:"g17",status:"closed",     home:"OAK", away:"CWS", hScore:10, aScore:9,  start_time:"2026-03-23T18:05:00Z"},
+  {id:"g18",status:"closed",     home:"CHC", away:"NYY", hScore:15, aScore:6,  start_time:"2026-03-23T19:05:00Z"},
+  {id:"g19",status:"closed",     home:"SDP", away:"SEA", hScore:10, aScore:3,  start_time:"2026-03-23T19:10:00Z"},
+  {id:"g20",status:"closed",     home:"MIL", away:"CIN", hScore:9,  aScore:1,  start_time:"2026-03-23T23:40:00Z"},
+  {id:"g21",status:"closed",     home:"TEX", away:"KCR", hScore:3,  aScore:2,  start_time:"2026-03-24T00:05:00Z"},
+  {id:"g22",status:"closed",     home:"LAD", away:"LAA", hScore:7,  aScore:7,  start_time:"2026-03-24T01:10:00Z"},
+  {id:"g23",status:"closed",     home:"COL", away:"DET", hScore:6,  aScore:5,  start_time:"2026-03-24T01:10:00Z"},
+  {id:"g24",status:"closed",     home:"ARI", away:"CLE", hScore:0,  aScore:7,  start_time:"2026-03-24T01:40:00Z"},
+  {id:"g25",status:"closed",     home:"ATL", away:"TBR", hScore:3,  aScore:2,  start_time:"2026-03-24T16:05:00Z"},
+  {id:"g26",status:"closed",     home:"TEX", away:"KCR", hScore:4,  aScore:1,  start_time:"2026-03-24T18:05:00Z"},
+  {id:"g27",status:"closed",     home:"CHC", away:"NYY", hScore:2,  aScore:8,  start_time:"2026-03-24T19:05:00Z"},
+  {id:"g28",status:"closed",     home:"COL", away:"DET", hScore:6,  aScore:8,  start_time:"2026-03-24T19:10:00Z"},
+  {id:"g29",status:"closed",     home:"ARI", away:"CLE", hScore:4,  aScore:6,  start_time:"2026-03-24T19:40:00Z"},
+  {id:"g30",status:"scheduled",  home:"MIL", away:"CIN", hScore:null,aScore:null,start_time:"2026-03-24T21:10:00Z"},
+  {id:"g31",status:"scheduled",  home:"LAD", away:"LAA", hScore:null,aScore:null,start_time:"2026-03-25T00:10:00Z"},
+  {id:"g32",status:"scheduled",  home:"SFG", away:"NYY", hScore:null,aScore:null,start_time:"2026-03-26T00:05:00Z"},
+  {id:"g33",status:"scheduled",  home:"NYM", away:"PIT", hScore:null,aScore:null,start_time:"2026-03-26T17:15:00Z"},
+  {id:"g34",status:"scheduled",  home:"MIL", away:"CWS", hScore:null,aScore:null,start_time:"2026-03-26T18:10:00Z"},
+  {id:"g35",status:"scheduled",  home:"CHC", away:"WSN", hScore:null,aScore:null,start_time:"2026-03-26T18:20:00Z"},
+  {id:"g36",status:"scheduled",  home:"BAL", away:"MIN", hScore:null,aScore:null,start_time:"2026-03-26T19:05:00Z"},
+  {id:"g37",status:"scheduled",  home:"HOU", away:"LAA", hScore:null,aScore:null,start_time:"2026-03-26T20:10:00Z"},
+  {id:"g38",status:"scheduled",  home:"SDP", away:"DET", hScore:null,aScore:null,start_time:"2026-03-26T20:10:00Z"},
+  {id:"g39",status:"scheduled",  home:"PHI", away:"TEX", hScore:null,aScore:null,start_time:"2026-03-26T20:15:00Z"},
+  {id:"g40",status:"scheduled",  home:"STL", away:"TBR", hScore:null,aScore:null,start_time:"2026-03-26T20:15:00Z"},
+  {id:"g41",status:"scheduled",  home:"LAD", away:"ARI", hScore:null,aScore:null,start_time:"2026-03-27T00:30:00Z"},
+  {id:"g42",status:"scheduled",  home:"SEA", away:"CLE", hScore:null,aScore:null,start_time:"2026-03-27T02:10:00Z"},
+];
+
+const ABBR_FIX = {
+  AZ:"ARI", SF:"SFG", TB:"TBR", KC:"KCR", SD:"SDP",
+  ATH:"OAK", WSH:"WSN",
+};
+function fixAbbr(a) {
+  if (!a) return null;
+  const fixed = ABBR_FIX[a] || a;
+  const VALID = new Set(["LAD","ATL","NYY","HOU","BAL","PHI","MIL","TOR","SDP","TEX",
+    "SEA","STL","CHC","MIN","CLE","NYM","ARI","SFG","TBR","BOS","DET","KCR",
+    "WSN","MIA","LAA","PIT","CIN","COL","CWS","OAK"]);
+  return VALID.has(fixed) ? fixed : null;
+}
+
+function buildStandingsFromGames(games) {
+  const rec = {};
+  for (const g of games) {
+    if (g.status !== "closed" && g.status !== "final") continue;
+    if (g.hScore == null || g.aScore == null) continue;
+    const h = g.home, a = g.away;
+    if (!h || !a) continue;
+    if (!rec[h]) rec[h] = {w:0,l:0,rf:0,ra:0};
+    if (!rec[a]) rec[a] = {w:0,l:0,rf:0,ra:0};
+    rec[h].rf += g.hScore; rec[h].ra += g.aScore;
+    rec[a].rf += g.aScore; rec[a].ra += g.hScore;
+    if (g.hScore > g.aScore) { rec[h].w++; rec[a].l++; }
+    else if (g.aScore > g.hScore) { rec[a].w++; rec[h].l++; }
+  }
+  const standings = {};
+  for (const [abbr, r] of Object.entries(rec)) {
+    const {w, l} = r;
+    standings[abbr] = {
+      wins:w, losses:l, gamesPlayed:w+l,
+      winPct: w+l > 0 ? +(w/(w+l)).toFixed(3) : 0,
+      streak:null, last10:null, gb:null,
+    };
+  }
+  return standings;
+}
+
+async function fetchLiveGames() {
+  const systemPrompt = `You are a sports data assistant. When asked for MLB scores, search the web and return ONLY a raw JSON array. No prose, no markdown fences, no explanation before or after. Start your response with [ and end with ].`;
+  const userMsg = `Search for today's MLB scores and last 3 days of results. Return ONLY a JSON array. Each object: {"id":"1","status":"closed","home":"NYY","away":"BOS","hScore":5,"aScore":3,"start_time":"2026-03-26T19:05:00Z"}. Status values: closed, inprogress, scheduled. Abbreviations ONLY from: LAD ATL NYY HOU BAL PHI MIL TOR SDP TEX SEA STL CHC MIN CLE NYM ARI SFG TBR BOS DET KCR WSN MIA LAA PIT CIN COL CWS OAK. No minor league. Return ONLY the JSON array.`;
+
+  let messages = [{ role: "user", content: userMsg }];
+  const tools = [{ type: "web_search_20250305", name: "web_search" }];
+
+  for (let turn = 0; turn < 3; turn++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": getApiKey(), "anthropic-version": "2023-06-01", "anthropic-beta": "web-search-2025-03-05", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4000,
+        system: systemPrompt,
+        messages,
+        tools,
+      }),
+    });
+    if (!res.ok) throw new Error("API " + res.status);
+    const d = await res.json();
+    if (!d.content || !Array.isArray(d.content)) throw new Error("Empty response");
+
+    messages.push({ role: "assistant", content: d.content });
+
+    if (d.stop_reason === "end_turn") {
+      const text = d.content.filter(b => b.type === "text").map(b => b.text || "").join("");
+      const s = text.indexOf("[");
+      const e = text.lastIndexOf("]");
+      if (s === -1 || e === -1 || e <= s) throw new Error("No JSON array in final response");
+      const parsed = JSON.parse(text.slice(s, e + 1));
+      if (!Array.isArray(parsed)) throw new Error("Not an array");
+      return parsed;
+    }
+
+    if (d.stop_reason === "tool_use") {
+      const toolResults = d.content
+        .filter(b => b.type === "tool_use")
+        .map(b => ({
+          type: "tool_result",
+          tool_use_id: b.id,
+          content: b.output || "",
+        }));
+      if (toolResults.length > 0) {
+        messages.push({ role: "user", content: toolResults });
+      }
+      continue;
+    }
+
+    const text = d.content.filter(b => b.type === "text").map(b => b.text || "").join("");
+    const s = text.indexOf("[");
+    const e = text.lastIndexOf("]");
+    if (s !== -1 && e > s) return JSON.parse(text.slice(s, e + 1));
+    throw new Error("Unexpected stop_reason: " + d.stop_reason);
+  }
+  throw new Error("Max turns exceeded without final response");
+}
+
+async function fetchAllMLBData(season) {
+  let games = [];
+  let usedLive = false;
+
+  try {
+    const raw = await fetchLiveGames();
+    games = raw
+      .filter(g => g && g.home && g.away)
+      .map((g, i) => ({
+        id: g.id || String(i),
+        status: g.status || "scheduled",
+        home: fixAbbr(g.home),
+        away: fixAbbr(g.away),
+        hScore: g.hScore != null ? +g.hScore : null,
+        aScore: g.aScore != null ? +g.aScore : null,
+        start_time: g.start_time || new Date().toISOString(),
+        inning: g.inning || null,
+        inningHalf: g.inningHalf || null,
+      }))
+      .filter(g => g.home && g.away);
+    usedLive = games.length > 0;
+  } catch (e) {
+    console.warn("Live fetch failed:", e.message);
+  }
+
+  if (games.length === 0) games = SEED_GAMES;
+
+  const standings = buildStandingsFromGames(games);
+  return {
+    games, standings, teamStats:{},
+    gamesOk: games.length > 0,
+    standingsOk: Object.keys(standings).length > 0,
+    usedLive,
+    warnings: [],
+  };
+}
+
+function parseMLBData(raw) {
+  return { games: raw.games||[], standings: raw.standings||{}, teamStats: raw.teamStats||{} };
+}
+
+function buildLiveTeams(standings, teamStats, games) {
+  const VALID = new Set(["LAD","ATL","NYY","HOU","BAL","PHI","MIL","TOR","SDP","TEX",
+    "SEA","STL","CHC","MIN","CLE","NYM","ARI","SFG","TBR","BOS","DET","KCR",
+    "WSN","MIA","LAA","PIT","CIN","COL","CWS","OAK"]);
+
+  const completed = games
+    .filter(g => (g.status === "final" || g.status === "closed") && g.hScore != null && g.aScore != null)
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+  const eloRatings = {};
+  for (const base of BASELINE) {
+    eloRatings[base.id] = base.powRating * 100;
+  }
+
+  const K_BASE = 20;
+  const MOV_CAP = 5;
+
+  for (const g of completed) {
+    const h = g.home, a = g.away;
+    if (!VALID.has(h) || !VALID.has(a)) continue;
+    if (!eloRatings[h]) eloRatings[h] = 700;
+    if (!eloRatings[a]) eloRatings[a] = 700;
+
+    const rH = eloRatings[h], rA = eloRatings[a];
+    const expH = 1 / (1 + Math.pow(10, (rA - rH) / 400));
+    const expA = 1 - expH;
+
+    const margin = Math.abs(g.hScore - g.aScore);
+    const cappedMargin = Math.min(margin, MOV_CAP);
+    const movMult = cappedMargin > 0 ? Math.log(cappedMargin + 1) / Math.log(MOV_CAP + 1) : 0.15;
+    const K = K_BASE * movMult;
+
+    const hWon = g.hScore > g.aScore;
+    const scoreH = hWon ? 1 : 0;
+    const scoreA = 1 - scoreH;
+
+    eloRatings[h] = rH + K * (scoreH - expH);
+    eloRatings[a] = rA + K * (scoreA - expA);
+  }
+
+  const teamGames = {};
+  for (const g of completed) {
+    const h = g.home, a = g.away;
+    if (!VALID.has(h) || !VALID.has(a)) continue;
+    if (!teamGames[h]) teamGames[h] = [];
+    if (!teamGames[a]) teamGames[a] = [];
+    teamGames[h].push({ rf: g.hScore, ra: g.aScore, won: g.hScore > g.aScore, margin: g.hScore - g.aScore });
+    teamGames[a].push({ rf: g.aScore, ra: g.hScore, won: g.aScore > g.hScore, margin: g.aScore - g.hScore });
+  }
+
+  const gameRecords = {};
+  for (const [id, tgames] of Object.entries(teamGames)) {
+    const rev = [...tgames].reverse();
+    let wW=0, wL=0, wRF=0, wRA=0, totalWt=0;
+    rev.forEach((g, idx) => {
+      const wt = idx < 10 ? 3 : idx < 20 ? 2 : 1;
+      totalWt += wt;
+      if (g.won) wW += wt; else wL += wt;
+      wRF += g.rf * wt;
+      wRA += g.ra * wt;
+    });
+    gameRecords[id] = {
+      g:    tgames.length,
+      w:    rev.filter(g => g.won).length,
+      l:    rev.filter(g => !g.won).length,
+      wWin: wW / totalWt,
+      wRF:  wRF / totalWt,
+      wRA:  wRA / totalWt,
+      rf:   tgames.reduce((s,g) => s+g.rf, 0),
+      ra:   tgames.reduce((s,g) => s+g.ra, 0),
+    };
+  }
+
+  return BASELINE.map(base => {
+    const st = standings[base.id];
+    const ts = teamStats[base.id];
+    const gr = gameRecords[base.id];
+
+    const gamesPlayed = st?.gamesPlayed ?? gr?.g ?? 0;
+    if (gamesPlayed === 0) return {
+      ...base, wins:0, losses:0, liveGames:0, dataSource:"baseline",
+      pythagWinPct: base.winPct, recencyWinPct: base.winPct, pythagDiff: 0,
+      eloRating: base.powRating * 100,
+    };
+
+    const wins         = st?.wins   ?? gr?.w ?? 0;
+    const losses       = st?.losses ?? gr?.l ?? 0;
+    const actualWinPct = st ? st.winPct : (wins / (wins + losses) || 0);
+    const recencyWinPct = gr ? gr.wWin : actualWinPct;
+    const liveRF = gr ? gr.wRF : (ts?.runsFor ?? base.runsFor);
+    const liveRA = gr ? gr.wRA : (ts?.runsAgainst ?? base.runsAgainst);
+
+    const totalRF = gr ? gr.rf : liveRF * gamesPlayed;
+    const totalRA = gr ? gr.ra : liveRA * gamesPlayed;
+    const rfExp = Math.pow(totalRF, 1.83);
+    const raExp = Math.pow(totalRA, 1.83);
+    const pythagWinPct = rfExp / (rfExp + raExp) || actualWinPct;
+    const pythagDiff = +(actualWinPct - pythagWinPct).toFixed(3);
+
+    const liveElo = eloRatings[base.id] ?? base.powRating * 100;
+    const eloContrib = (liveElo - base.powRating * 100) / 100;
+    const liveWeight = Math.min(0.40, gamesPlayed / 162 * 1.5);
+    const bw = 1 - liveWeight;
+
+    const blendedWinPct_live = actualWinPct*0.35 + recencyWinPct*0.35 + pythagWinPct*0.20
+                              + Math.min(0.60, Math.max(0.40, actualWinPct + eloContrib*0.02))*0.10;
+    const blendedWinPct = bw * base.winPct + liveWeight * blendedWinPct_live;
+    const blendedRF     = bw * base.runsFor + liveWeight * liveRF;
+    const blendedRA     = bw * base.runsAgainst + liveWeight * liveRA;
+
+    const liveERA  = ts?.era  ?? base.era;
+    const liveWHIP = ts?.whip ?? base.whip;
+    const liveOPS  = ts?.ops  ?? base.ops;
+    const liveOBP  = ts?.obp  ?? base.obp;
+    const liveSLG  = ts?.slg  ?? base.slg;
+    const liveK9   = ts?.kPer9  ?? base.kPer9;
+    const liveBB9  = ts?.bbPer9 ?? base.bbPer9;
+    const liveHR9  = ts?.hrAllowed ?? base.hrAllowed;
+
+    const blendedERA  = bw*base.era  + liveWeight*liveERA;
+    const blendedWHIP = bw*base.whip + liveWeight*liveWHIP;
+    const blendedOPS  = bw*base.ops  + liveWeight*liveOPS;
+    const blendedOBP  = bw*base.obp  + liveWeight*liveOBP;
+    const blendedSLG  = bw*base.slg  + liveWeight*liveSLG;
+    const blendedK9   = bw*base.kPer9  + liveWeight*liveK9;
+    const blendedBB9  = bw*base.bbPer9 + liveWeight*liveBB9;
+    const blendedHR9  = bw*base.hrAllowed + liveWeight*liveHR9;
+
+    const offDelta = (blendedWinPct_live - base.winPct) * 3;
+    const defDelta = -(liveRA - base.runsAgainst) * 0.2;
+    const newOff = Math.max(1, Math.min(10, base.offRating + offDelta*liveWeight*2));
+    const newDef = Math.max(1, Math.min(10, base.defRating + defDelta*liveWeight*2));
+    const eraImprovement = (base.era - liveERA) * 0.15;
+    const newSP  = Math.max(1, Math.min(10, base.spRating + eraImprovement*liveWeight*2));
+
+    const newPow = Math.max(1, Math.min(10,
+      newOff*0.38 + newDef*0.38 + newSP*0.19 + Math.max(-1, Math.min(1, eloContrib))*0.05
+    ));
+
+    return {
+      ...base,
+      winPct: blendedWinPct,
+      runsFor: blendedRF, runsAgainst: blendedRA,
+      margin: blendedRF - blendedRA,
+      ops: blendedOPS, obp: blendedOBP, slg: blendedSLG,
+      era: blendedERA, whip: blendedWHIP,
+      kPer9: blendedK9, bbPer9: blendedBB9, hrAllowed: blendedHR9,
+      offRating: newOff, defRating: newDef, spRating: newSP, powRating: newPow,
+      wins, losses,
+      liveGames:     gamesPlayed,
+      liveWeight:    Math.round(liveWeight * 100),
+      pythagWinPct:  +pythagWinPct.toFixed(3),
+      recencyWinPct: +recencyWinPct.toFixed(3),
+      pythagDiff,
+      eloRating:     Math.round(liveElo),
+      eloContrib:    +eloContrib.toFixed(2),
+      streak: st?.streak, last10: st?.last10, gb: st?.gb,
+      dataSource: ts ? "mlb-api" : gr ? "game-agg+elo" : "baseline",
+    };
+  });
+}
+
+const ALL_COLUMNS = [
+  { key:"wins",        label:"W",        fmt:v=>v,                         tip:"Wins (live from MLB API)" },
+  { key:"losses",      label:"L",        fmt:v=>v,                         tip:"Losses (live from MLB API)" },
+  { key:"winPct",      label:"WIN%",     fmt:v=>(v*100).toFixed(1)+"%",    tip:"Win percentage (blended)" },
+  { key:"eloRating",   label:"ELO",      fmt:v=>Math.round(v),             tip:"MoV-weighted Elo rating" },
+  { key:"eloContrib",  label:"ELO ADJ",  fmt:v=>(v>0?"+":"")+v.toFixed(2), tip:"Elo rating adjustment from baseline" },
+  { key:"recencyWinPct",label:"RCNT%",   fmt:v=>(v*100).toFixed(1)+"%",   tip:"Recency-weighted win%" },
+  { key:"pythagDiff",  label:"LUCK",     fmt:v=>(v>0?"+":"")+((v||0)*100).toFixed(1)+"pp", tip:"Actual W% minus Pythagorean W%" },
+  { key:"streak",      label:"STRK",     fmt:v=>v||"–",                    tip:"Current streak" },
+  { key:"last10",      label:"L10",      fmt:v=>v||"–",                    tip:"Last 10 games record" },
+  { key:"margin",      label:"RDIFF",    fmt:v=>(v>0?"+":"")+v.toFixed(2), tip:"Run differential per game" },
+  { key:"runsFor",     label:"R/G",      fmt:v=>v.toFixed(2),              tip:"Runs per game" },
+  { key:"runsAgainst", label:"RA/G",     fmt:v=>v.toFixed(2),              tip:"Runs allowed per game" },
+  { key:"ops",         label:"OPS",      fmt:v=>v.toFixed(3),              tip:"On-base plus slugging" },
+  { key:"obp",         label:"OBP",      fmt:v=>v.toFixed(3),              tip:"On-base percentage" },
+  { key:"slg",         label:"SLG",      fmt:v=>v.toFixed(3),              tip:"Slugging percentage" },
+  { key:"era",         label:"ERA",      fmt:v=>v.toFixed(2),              tip:"Team ERA" },
+  { key:"whip",        label:"WHIP",     fmt:v=>v.toFixed(2),              tip:"Walks + hits per inning" },
+  { key:"kPer9",       label:"K/9",      fmt:v=>v.toFixed(1),              tip:"Strikeouts per 9 innings" },
+  { key:"bbPer9",      label:"BB/9",     fmt:v=>v.toFixed(1),              tip:"Walks per 9 innings" },
+  { key:"hrAllowed",   label:"HR/9",     fmt:v=>v.toFixed(2),              tip:"Home runs allowed per 9" },
+  { key:"babip",       label:"BABIP",    fmt:v=>v.toFixed(3),              tip:"Batting avg on balls in play" },
+  { key:"fip",         label:"FIP",      fmt:v=>v.toFixed(2),              tip:"Fielding independent pitching" },
+  { key:"lob",         label:"LOB%",     fmt:v=>v.toFixed(1)+"%",          tip:"Left on base %" },
+  { key:"offRating",   label:"OFF RTG",  fmt:v=>v.toFixed(2),              tip:"Composite offensive rating (0-10)" },
+  { key:"defRating",   label:"DEF RTG",  fmt:v=>v.toFixed(2),              tip:"Composite defensive rating (0-10)" },
+  { key:"spRating",    label:"SP RTG",   fmt:v=>v.toFixed(2),              tip:"Starting pitcher rating (0-10)" },
+  { key:"powRating",   label:"PWR RTG",  fmt:v=>v.toFixed(2),              tip:"Overall power rating (0-10)" },
+];
+const DEFAULT_COLS = ["wins","losses","winPct","streak","last10","margin","ops","era","whip","kPer9","offRating","defRating","spRating","powRating"];
+const DIVISIONS = ["AL East","AL West","AL Central","NL East","NL West","NL Central"];
+
+const NAV_ITEMS = [
+  { id:"stats",      label:"Team Stats Table" },
+  { id:"power",      label:"Power Rankings" },
+  { id:"xy",         label:"XY Explorer" },
+  { id:"matchup",    label:"Matchup Simulator" },
+  { id:"scoreboard", label:"Scoreboard" },
+  { id:"odds",       label:"Odds" },
+  { id:"gambling",   label:"Daily Betting Lines" },
+  { id:"perf",       label:"Model Performance" },
+  { id:"method",     label:"Methodology" },
+];
+
+const SP_TIERS = {
+  LAD:{slots:[1.0,0.4,0.1,-0.2,-0.5]}, ATL:{slots:[0.9,0.3,0.0,-0.2,-0.5]},
+  NYY:{slots:[0.8,0.3,0.0,-0.2,-0.5]}, HOU:{slots:[0.8,0.3,0.0,-0.2,-0.4]},
+  BAL:{slots:[0.6,0.2,0.0,-0.2,-0.4]}, PHI:{slots:[0.9,0.3,0.0,-0.2,-0.5]},
+  MIL:{slots:[0.6,0.2,-0.1,-0.3,-0.5]}, TOR:{slots:[0.5,0.2,-0.1,-0.3,-0.5]},
+  SDP:{slots:[0.7,0.3,0.0,-0.2,-0.4]}, TEX:{slots:[0.5,0.1,-0.1,-0.3,-0.5]},
+  SEA:{slots:[0.8,0.3,0.0,-0.2,-0.4]}, STL:{slots:[0.4,0.1,-0.1,-0.3,-0.5]},
+  CHC:{slots:[0.4,0.1,-0.1,-0.3,-0.5]}, MIN:{slots:[0.5,0.2,-0.1,-0.3,-0.5]},
+  CLE:{slots:[0.6,0.2,0.0,-0.2,-0.4]}, NYM:{slots:[0.5,0.2,-0.1,-0.3,-0.5]},
+  ARI:{slots:[0.5,0.1,-0.1,-0.3,-0.5]}, SFG:{slots:[0.4,0.1,-0.2,-0.4,-0.6]},
+  TBR:{slots:[0.5,0.2,0.0,-0.2,-0.4]}, BOS:{slots:[0.4,0.1,-0.2,-0.4,-0.6]},
+  DET:{slots:[0.8,0.3,0.0,-0.2,-0.4]}, KCR:{slots:[0.3,0.0,-0.2,-0.4,-0.6]},
+  WSN:{slots:[0.2,0.0,-0.2,-0.4,-0.6]}, MIA:{slots:[0.3,0.0,-0.2,-0.4,-0.6]},
+  LAA:{slots:[0.2,-0.1,-0.3,-0.5,-0.7]}, PIT:{slots:[0.2,0.0,-0.2,-0.4,-0.6]},
+  CIN:{slots:[0.3,0.0,-0.2,-0.4,-0.6]}, COL:{slots:[-0.2,-0.3,-0.5,-0.7,-0.9]},
+  CWS:{slots:[0.0,-0.2,-0.4,-0.6,-0.8]}, OAK:{slots:[0.0,-0.2,-0.4,-0.6,-0.8]},
+};
+function getSpAdj(teamId, gameOffset=0) {
+  const t = SP_TIERS[teamId]; if (!t) return 0;
+  return t.slots[Math.abs(gameOffset)%5] || 0;
+}
+
+const PARK_FACTORS = {
+  LAD:{park:"Dodger Stadium",          pf:0.96, hfa:0.30, ou:0.96},
+  ATL:{park:"Truist Park",             pf:1.02, hfa:0.28, ou:1.01},
+  NYY:{park:"Yankee Stadium",          pf:1.07, hfa:0.27, ou:1.05},
+  HOU:{park:"Minute Maid Park",        pf:1.02, hfa:0.28, ou:1.01},
+  BAL:{park:"Camden Yards",            pf:1.03, hfa:0.23, ou:1.02},
+  PHI:{park:"Citizens Bank Park",      pf:1.06, hfa:0.26, ou:1.05},
+  MIL:{park:"American Family Field",   pf:1.04, hfa:0.26, ou:1.03},
+  TOR:{park:"Rogers Centre",           pf:1.05, hfa:0.24, ou:1.04},
+  SDP:{park:"Petco Park",              pf:0.91, hfa:0.26, ou:0.91},
+  TEX:{park:"Globe Life Field",        pf:1.03, hfa:0.24, ou:1.02},
+  SEA:{park:"T-Mobile Park",           pf:0.95, hfa:0.26, ou:0.95},
+  STL:{park:"Busch Stadium",           pf:0.97, hfa:0.25, ou:0.97},
+  CHC:{park:"Wrigley Field",           pf:1.05, hfa:0.23, ou:1.04},
+  MIN:{park:"Target Field",            pf:0.97, hfa:0.24, ou:0.97},
+  CLE:{park:"Progressive Field",       pf:0.98, hfa:0.26, ou:0.98},
+  NYM:{park:"Citi Field",              pf:0.94, hfa:0.23, ou:0.94},
+  ARI:{park:"Chase Field",             pf:1.05, hfa:0.21, ou:1.04},
+  SFG:{park:"Oracle Park",             pf:0.92, hfa:0.21, ou:0.93},
+  TBR:{park:"Tropicana Field",         pf:0.96, hfa:0.24, ou:0.96},
+  BOS:{park:"Fenway Park",             pf:1.08, hfa:0.23, ou:1.06},
+  DET:{park:"Comerica Park",           pf:0.96, hfa:0.20, ou:0.96},
+  KCR:{park:"Kauffman Stadium",        pf:0.98, hfa:0.17, ou:0.98},
+  WSN:{park:"Nationals Park",          pf:1.01, hfa:0.14, ou:1.00},
+  MIA:{park:"loanDepot Park",          pf:0.93, hfa:0.14, ou:0.93},
+  LAA:{park:"Angel Stadium",           pf:0.97, hfa:0.14, ou:0.97},
+  PIT:{park:"PNC Park",                pf:0.96, hfa:0.14, ou:0.96},
+  CIN:{park:"Great American Ball Park",pf:1.11, hfa:0.16, ou:1.09},
+  COL:{park:"Coors Field",             pf:1.38, hfa:0.14, ou:1.28},
+  CWS:{park:"Guaranteed Rate Field",   pf:1.06, hfa:0.14, ou:1.04},
+  OAK:{park:"Oakland Coliseum",        pf:0.96, hfa:0.14, ou:0.96},
+};
+function getPark(id) { return PARK_FACTORS[id] || {park:"Neutral",pf:1.0,hfa:0.22,ou:1.0}; }
+
+function eloWinProb(rA, rB) { return 1/(1+Math.pow(10,(rB-rA)/3)); }
+
+function pythagFlag(team) {
+  if (!team.pythagDiff || Math.abs(team.pythagDiff) < 0.05) return null;
+  return team.pythagDiff > 0 ? "LUCKY" : "UNLUCKY";
+}
+
+function predictMatchup(home, away, hfa=true, homeSpSlot=2, awaySpSlot=2) {
+  const sim = runSimulation(home, away, hfa, homeSpSlot, awaySpSlot);
+  return {
+    hWinPct:  sim.hWinPct,
+    aWinPct:  sim.aWinPct,
+    hRuns:    sim.hAvgRuns,
+    aRuns:    sim.aAvgRuns,
+    total:    sim.avgTotal,
+    rlCoverPct:  sim.rlCoverPct,
+    aRLCoverPct: sim.aRLCoverPct,
+    edge: (sim.hLambda - sim.aLambda).toFixed(3),
+    hSpAdj: sim.hSpAdj, aSpAdj: sim.aSpAdj,
+    hPythFlag: sim.hPythFlag, aPythFlag: sim.aPythFlag,
+    pythagAdj: "0.0",
+    park: sim.park, parkFactor: sim.parkFactor, parkHfa: sim.parkHfa,
+    sim,
+  };
+}
+function toML(prob) {
+  const p = Math.max(0.01, Math.min(0.99, prob));
+  return p >= 0.5 ? "-"+Math.round(p/(1-p)*100) : "+"+Math.round((1-p)/p*100);
+}
+
+const POISSON_N = 10000;
+const LG_AVG_R9 = 4.55;
+
+function poissonDraw(lambda) {
+  if (lambda <= 0) return 0;
+  if (lambda > 30) {
+    const val = Math.round(lambda + Math.sqrt(lambda) * (Math.random()*2 - 1) * 1.73);
+    return Math.max(0, val);
+  }
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
+function simulateGame(hLambda, aLambda) {
+  let h = 0, a = 0;
+  for (let inn = 0; inn < 9; inn++) {
+    h += poissonDraw(hLambda);
+    a += poissonDraw(aLambda);
+  }
+  let extra = 0;
+  while (h === a && extra < 6) {
+    h += poissonDraw(hLambda * 0.85);
+    a += poissonDraw(aLambda * 0.85);
+    extra++;
+  }
+  if (h === a) { if (Math.random() > 0.5) h++; else a++; }
+  return { h, a };
+}
+
+function runSimulation(home, away, hfa = true, homeSpSlot = 2, awaySpSlot = 2) {
+  const park    = getPark(home.id);
+  const hSpAdj  = getSpAdj(home.id, homeSpSlot);
+  const aSpAdj  = getSpAdj(away.id, awaySpSlot);
+  const parkHfa = hfa ? park.hfa : 0;
+
+  const hOff = home.runsFor     || LG_AVG_R9;
+  const aDef = away.runsAgainst || LG_AVG_R9;
+  const aOff = away.runsFor     || LG_AVG_R9;
+  const hDef = home.runsAgainst || LG_AVG_R9;
+
+  const hSpMult = 1 + hSpAdj * -0.04;
+  const aSpMult = 1 + aSpAdj * -0.04;
+
+  const hExpR9 = Math.sqrt(hOff * aDef) * park.pf * aSpMult;
+  const aExpR9 = Math.sqrt(aOff * hDef) * park.pf * hSpMult;
+
+  const hfaRunBoost = parkHfa * 0.5;
+  const hLambda = Math.max(0.2, (hExpR9 + hfaRunBoost) / 9);
+  const aLambda = Math.max(0.2, aExpR9 / 9);
+
+  let hWins = 0, rlCovers = 0, totalRuns = 0;
+  const totals = new Array(30).fill(0);
+  let hRunSum = 0, aRunSum = 0;
+
+  for (let i = 0; i < POISSON_N; i++) {
+    const { h, a } = simulateGame(hLambda, aLambda);
+    if (h > a) { hWins++; if (h - a >= 2) rlCovers++; }
+    const tot = h + a;
+    totalRuns += tot;
+    if (tot < 30) totals[tot]++;
+    hRunSum += h; aRunSum += a;
+  }
+
+  const hWinProb   = hWins / POISSON_N;
+  const rlCoverPct = rlCovers / POISSON_N;
+  const avgTotal   = totalRuns / POISSON_N;
+  const hAvgRuns   = hRunSum / POISSON_N;
+  const aAvgRuns   = aRunSum / POISSON_N;
+
+  const hPythFlag = pythagFlag(home);
+  const aPythFlag = pythagFlag(away);
+  let pythagAdj = 0;
+  if (hPythFlag === "LUCKY")   pythagAdj -= 0.02;
+  if (hPythFlag === "UNLUCKY") pythagAdj += 0.02;
+  if (aPythFlag === "LUCKY")   pythagAdj += 0.02;
+  if (aPythFlag === "UNLUCKY") pythagAdj -= 0.02;
+
+  const hWinCalib = applyCalibration(
+    Math.max(0.05, Math.min(0.95, hWinProb + pythagAdj)),
+    null
+  );
+
+  return {
+    hWinProb:     hWinCalib,
+    aWinProb:     1 - hWinCalib,
+    hWinPct:      (hWinCalib * 100).toFixed(1),
+    aWinPct:      ((1 - hWinCalib) * 100).toFixed(1),
+    rlCoverPct:   +(rlCoverPct * 100).toFixed(1),
+    aRLCoverPct:  +((1 - rlCoverPct) * 100).toFixed(1),
+    avgTotal:     +avgTotal.toFixed(1),
+    hAvgRuns:     +hAvgRuns.toFixed(1),
+    aAvgRuns:     +aAvgRuns.toFixed(1),
+    totalDist:    totals,
+    hLambda:      +hLambda.toFixed(3),
+    aLambda:      +aLambda.toFixed(3),
+    hPythFlag, aPythFlag,
+    park: park.park, parkFactor: park.pf, parkHfa,
+    hSpAdj, aSpAdj,
+    simN: POISSON_N,
+  };
+}
+
+function simOverProb(totalDist, ouLine) {
+  const n = totalDist.reduce((s, v) => s + v, 0);
+  if (n === 0) return 0.5;
+  const over = totalDist.slice(Math.ceil(ouLine + 1)).reduce((s, v) => s + v, 0);
+  return over / n;
+}
+
+function fmtDate(iso) {
+  try { return new Date(iso).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); }
+  catch { return iso; }
+}
+function fmtTime(iso) {
+  try { return new Date(iso).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); }
+  catch { return ""; }
+}
+
+// ———————————————————
+// Main App
+// ———————————————————
+function App() {
+  const [navOpen, setNavOpen]     = useState(false);
+  const [page, setPage]           = useState("power");
+  const [teams, setTeams]         = useState(BASELINE.map(t=>({...t,wins:0,losses:0,liveGames:0})));
+  const [allGames, setAllGames]   = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const [refreshError, setRefreshError] = useState(null);
+  const [dataStatus, setDataStatus]    = useState({standings:false, stats:false, schedule:false});
+
+  const SEASON = new Date().getFullYear().toString();
+
+  const refresh = useCallback(async () => {
+    setLoading(true); setRefreshError(null);
+    try {
+      const raw = await fetchAllMLBData(SEASON);
+      const { games, standings, teamStats } = parseMLBData(raw);
+      const hasGames     = games.length > 0;
+      const hasStandings = Object.keys(standings).length > 0;
+      setDataStatus({ schedule: raw.gamesOk ?? hasGames, standings: raw.standingsOk ?? hasStandings, stats: true });
+      setAllGames(games);
+      setTeams(buildLiveTeams(standings, teamStats, games));
+      setLastRefresh(new Date());
+      if (!hasGames && !hasStandings) setRefreshError("No data returned.");
+    } catch (e) {
+      setRefreshError(e.message || "Unknown fetch error");
+    }
+    setLoading(false);
+  }, [SEASON]);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 5*60*1000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  function navigate(p) { setPage(p); setNavOpen(false); }
+
+  const liveGames  = useMemo(() => allGames.filter(g=>g.status==="live"||g.status==="inprogress"), [allGames]);
+  const totalGames = useMemo(() => {
+    const played = teams.reduce((s,t)=>s+(t.liveGames||0),0)/2;
+    return Math.round(played);
+  }, [teams]);
+
+  return (
+    <LiveContext.Provider value={{ teams, allGames, liveGames, loading, lastRefresh, refresh, refreshError, dataStatus, totalGames, SEASON }}>
+      <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",color:C.text,overflow:"hidden"}}>
+
+        {navOpen && <div onClick={()=>setNavOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:40}}/>}
+
+        {/* Sidebar */}
+        <aside style={{position:"fixed",top:0,left:0,bottom:0,width:252,background:C.header,borderRight:`1px solid ${C.border}`,zIndex:50,transform:navOpen?"translateX(0)":"translateX(-100%)",transition:"transform 0.22s ease",display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"1.25rem 1.25rem 0.5rem",borderBottom:`1px solid ${C.border}`}}>
+            <div style={{fontSize:"0.62rem",letterSpacing:"0.18em",color:C.dim,marginBottom:"0.6rem"}}>MLB STATS MODEL 2026</div>
+            {NAV_ITEMS.map(n=>(
+              <button key={n.id} onClick={()=>navigate(n.id)} style={{display:"flex",alignItems:"center",width:"100%",padding:"0.5rem 0.75rem",borderRadius:3,background:page===n.id?"rgba(201,168,76,0.12)":"transparent",border:"none",borderLeft:page===n.id?`2px solid ${C.gold}`:"2px solid transparent",color:page===n.id?C.goldLight:C.muted,fontSize:"0.84rem",cursor:"pointer",textAlign:"left",fontFamily:"inherit",marginBottom:2,transition:"all 0.15s"}}>
+                {n.label}
+              </button>
+            ))}
+          </div>
+          <div style={{padding:"1rem 1.25rem",borderTop:`1px solid ${C.border}`,marginTop:"auto"}}>
+            <div style={{fontSize:"0.6rem",letterSpacing:"0.12em",color:C.dim,marginBottom:"0.5rem"}}>DATA SOURCE</div>
+            <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:3,padding:"0.6rem 0.75rem",marginBottom:"0.75rem"}}>
+              <div style={{fontSize:"0.68rem",color:C.gold,fontWeight:"bold",marginBottom:"0.3rem"}}>SportRadar via Claude</div>
+              <div style={{fontSize:"0.62rem",color:C.dim,marginBottom:"0.4rem"}}>Scores refresh on load + every 5 min</div>
+              {[
+                { label:"Scores / Schedule", ok:dataStatus.schedule },
+                { label:"W-L Standings",     ok:dataStatus.standings },
+                { label:"ERA / OPS / Ratings", ok:true, note:"preseason proj." },
+              ].map(s=>(
+                <div key={s.label} style={{display:"flex",justifyContent:"space-between",fontSize:"0.62rem",color:C.dim,marginBottom:2}}>
+                  <span>{s.label}{s.note ? <span style={{color:C.dim,opacity:0.6}}> ({s.note})</span> : null}</span>
+                  <span style={{color:s.ok?C.green:loading?C.gold:C.red}}>{loading?"...":s.ok?"✓":"✗"}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={refresh} disabled={loading} style={{width:"100%",padding:"0.45rem 0.75rem",background:"transparent",border:`1px solid ${refreshError?C.red:C.border}`,borderRadius:3,color:loading?C.dim:refreshError?C.red:C.muted,fontSize:"0.78rem",cursor:"pointer",fontFamily:"inherit",textAlign:"left",opacity:loading?0.6:1}}>
+              {loading?"Refreshing...":refreshError?"↺ Retry":"↺ Refresh Now"}
+            </button>
+            {lastRefresh&&<div style={{fontSize:"0.6rem",color:C.dim,marginTop:"0.35rem"}}>Updated {lastRefresh.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>}
+          </div>
+        </aside>
+
+        {/* Main */}
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {/* Header */}
+          <header style={{background:C.header,borderBottom:`1px solid ${C.border}`,padding:"0 0.75rem",height:46,display:"flex",alignItems:"center",gap:"0.6rem",flexShrink:0,overflow:"hidden"}}>
+            <button onClick={()=>setNavOpen(!navOpen)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"1.1rem",padding:"0.2rem 0.35rem",lineHeight:1,flexShrink:0}}>☰</button>
+            <div style={{width:1,height:22,background:C.border,flexShrink:0}}/>
+            <div style={{fontSize:"0.85rem",fontWeight:"bold",letterSpacing:"0.08em",color:C.text,whiteSpace:"nowrap",flexShrink:0}}>MLB STATS MODEL</div>
+            <div style={{display:"flex",alignItems:"center",gap:"0.3rem",padding:"0.15rem 0.45rem",borderRadius:10,flexShrink:0,background:loading?"rgba(201,168,76,0.1)":liveGames.length>0?"rgba(93,200,122,0.1)":"rgba(255,255,255,0.04)",border:`1px solid ${loading?"rgba(201,168,76,0.3)":liveGames.length>0?"rgba(93,200,122,0.3)":C.border}`}}>
+              <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:loading?C.gold:liveGames.length>0?C.green:C.dim,animation:(loading||liveGames.length>0)?"pulse 1.4s infinite":"none"}}/>
+              <span style={{fontSize:"0.6rem",color:loading?C.gold:liveGames.length>0?C.green:C.dim,letterSpacing:"0.05em",whiteSpace:"nowrap"}}>
+                {loading?"SYNC":liveGames.length>0?`${liveGames.length} LIVE`:lastRefresh?"LIVE":"--"}
+              </span>
+            </div>
+            <div style={{marginLeft:"auto",fontSize:"0.65rem",color:C.dim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>
+              {totalGames>0?`${totalGames} games · `:""}{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+            </div>
+          </header>
+
+          {refreshError && (
+            <div style={{padding:"0.6rem 1.5rem",background:"rgba(224,96,96,0.08)",borderBottom:`1px solid rgba(224,96,96,0.2)`,fontSize:"0.8rem",color:C.red}}>
+              ⚠ {refreshError}
+            </div>
+          )}
+          {loading && teams.every(t=>t.liveGames===0) && !refreshError && (
+            <div style={{padding:"0.6rem 1.5rem",background:"rgba(201,168,76,0.06)",borderBottom:`1px solid rgba(201,168,76,0.15)`,display:"flex",alignItems:"center",gap:"0.75rem"}}>
+              <div style={{display:"flex",gap:"0.25rem"}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:C.gold,animation:"pulse 1.2s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>
+              <span style={{fontSize:"0.78rem",color:C.gold}}>Fetching live data...</span>
+            </div>
+          )}
+
+          <div style={{flex:1,overflow:"auto"}}>
+            {page==="stats"      && <TeamStatsPage/>}
+            {page==="power"      && <PowerRankingsPage/>}
+            {page==="xy"         && <XYExplorerPage/>}
+            {page==="matchup"    && <MatchupSimPage/>}
+            {page==="scoreboard" && <ScoreboardPage/>}
+            {page==="odds"       && <OddsPage/>}
+            {page==="gambling"   && <GamblingPage/>}
+            {page==="perf"       && <ModelPerfPage/>}
+            {page==="method"     && <MethodologyPage/>}
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:0.3;transform:scale(0.85)}50%{opacity:1;transform:scale(1.05)}}`}</style>
+
+```
+</LiveContext.Provider>
+```
+
+);
+}
+
+// ———————————————————
+// TEAM STATS TABLE
+// ———————————————————
+function TeamStatsPage() {
+const {teams, dataStatus} = useLive();
+const [filter,setFilter]   = useState(””);
+const [sortBy,setSortBy]   = useState(“powRating”);
+const [asc,setAsc]         = useState(false);
+const [cols,setCols]       = useState(new Set(DEFAULT_COLS));
+const [search,setSearch]   = useState(””);
+const [entries,setEntries] = useState(30);
+
+const toggleCol = k => setCols(prev=>{const s=new Set(prev);s.has(k)?s.delete(k):s.add(k);return s;});
+const activeCols = ALL_COLUMNS.filter(c=>cols.has(c.key));
+
+const rows = useMemo(()=>{
+let r = […teams];
+if (filter) r = r.filter(t=>t.div===filter);
+if (search) r = r.filter(t=>t.name.toLowerCase().includes(search.toLowerCase())||t.id.toLowerCase().includes(search.toLowerCase()));
+r.sort((a,b)=>asc?(a[sortBy]??0)-(b[sortBy]??0):(b[sortBy]??0)-(a[sortBy]??0));
+return r.slice(0,entries);
+},[teams,filter,sortBy,asc,search,entries]);
+
+return (
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>TEAM STATS – {new Date().getFullYear()} <LiveBadge/></SectionHeader>
+<div style={{display:“grid”,gridTemplateColumns:“1fr 1fr auto”,gap:“0.75rem”,marginBottom:“1rem”,alignItems:“end”}}>
+<Ctrl label="Division"><select value={filter} onChange={e=>setFilter(e.target.value)} style={ss}><option value="">All 30 teams</option>{DIVISIONS.map(d=><option key={d} value={d}>{d}</option>)}</select></Ctrl>
+<Ctrl label="Sort By"><select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={ss}>{ALL_COLUMNS.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</select></Ctrl>
+<label style={{display:“flex”,alignItems:“center”,gap:“0.4rem”,fontSize:“0.8rem”,color:C.muted,cursor:“pointer”,paddingBottom:“0.45rem”}}>
+<input type=“checkbox” checked={asc} onChange={e=>setAsc(e.target.checked)} style={{accentColor:C.gold}}/> Asc
+</label>
+</div>
+<Ctrl label="Columns">
+<div style={{display:“flex”,flexWrap:“wrap”,gap:“0.35rem”,padding:“0.5rem”,background:C.surface,border:`1px solid ${C.border}`,borderRadius:3}}>
+{ALL_COLUMNS.map(c=>(
+<button key={c.key} onClick={()=>toggleCol(c.key)} title={c.tip} style={{padding:“0.18rem 0.5rem”,borderRadius:2,cursor:“pointer”,fontFamily:“inherit”,fontSize:“0.72rem”,border:`1px solid ${cols.has(c.key)?C.gold:C.border}`,background:cols.has(c.key)?“rgba(201,168,76,0.12)”:C.bg,color:cols.has(c.key)?C.goldLight:C.dim}}>
+{c.label}
+</button>
+))}
+</div>
+</Ctrl>
+<div style={{display:“flex”,justifyContent:“space-between”,margin:“0.75rem 0 0.4rem”,fontSize:“0.8rem”,color:C.muted}}>
+<div style={{display:“flex”,alignItems:“center”,gap:“0.4rem”}}>
+Show <select value={entries} onChange={e=>setEntries(+e.target.value)} style={{…ss,width:“auto”,padding:“0.2rem 0.4rem”}}>{[10,25,30].map(n=><option key={n} value={n}>{n}</option>)}</select>
+</div>
+<input value={search} onChange={e=>setSearch(e.target.value)} placeholder=“Search teams…” style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:3,padding:“0.2rem 0.5rem”,color:C.text,fontSize:“0.8rem”,fontFamily:“inherit”,outline:“none”,width:160}}/>
+</div>
+<div style={{overflowX:“auto”,border:`1px solid ${C.border}`,borderRadius:4}}>
+<table style={{width:“100%”,borderCollapse:“collapse”,fontSize:“0.82rem”}}>
+<thead>
+<tr style={{background:C.header}}>
+<th style={{…th,textAlign:“left”,minWidth:185}}>TEAM</th>
+{activeCols.map(c=>(
+<th key={c.key} title={c.tip} onClick={()=>{setSortBy(c.key);setAsc(sortBy===c.key?!asc:false);}} style={{…th,cursor:“pointer”,userSelect:“none”}}>
+{c.label}{sortBy===c.key?(asc?” ▲”:” ▼”):<span style={{opacity:0.25}}> ⇅</span>}
+</th>
+))}
+</tr>
+<tr><td colSpan={activeCols.length+1} style={{height:3,background:C.gold,padding:0}}/></tr>
+</thead>
+<tbody>
+{rows.map((t,i)=>(
+<tr key={t.id} style={{background:i%2===0?“transparent”:“rgba(255,255,255,0.016)”,borderBottom:`1px solid ${C.border}`}}>
+<td style={{padding:“0.65rem 1rem”}}>
+<div style={{display:“flex”,alignItems:“center”,gap:“0.6rem”}}>
+<div style={{width:28,height:28,borderRadius:“50%”,background:t.color,flexShrink:0,display:“flex”,alignItems:“center”,justifyContent:“center”,fontSize:“0.55rem”,fontWeight:“bold”,color:”#fff”}}>{t.id}</div>
+<div>
+<div style={{fontWeight:500,fontSize:“0.85rem”}}>{t.name}</div>
+{t.liveGames>0&&<div style={{fontSize:“0.6rem”,color:t.dataSource===“mlb-api”?C.green:C.gold}}>{t.wins}W-{t.losses}L · {t.liveWeight}% live · {t.dataSource}</div>}
+</div>
+</div>
+</td>
+{activeCols.map(c=>{
+const v = t[c.key];
+if (v==null||v===”–”) return <td key={c.key} style={{padding:“0.65rem 0.8rem”,textAlign:“center”,color:C.dim}}>–</td>;
+if (c.key===“streak”||c.key===“last10”) return <td key={c.key} style={{padding:“0.65rem 0.8rem”,textAlign:“center”,color:C.muted,fontSize:“0.78rem”}}>{v}</td>;
+if (c.key===“wins”||c.key===“losses”) return <td key={c.key} style={{padding:“0.65rem 0.8rem”,textAlign:“center”}}>{v}</td>;
+const isRating = c.key.endsWith(“Rating”);
+const lowBetter = [“runsAgainst”,“era”,“whip”,“bbPer9”,“hrAllowed”,“babip”,“fip”,“losses”].includes(c.key);
+const allV = teams.map(r=>r[c.key]).filter(x=>typeof x===“number”);
+const mn=Math.min(…allV),mx=Math.max(…allV);
+const pct = mx===mn ? 0.5 : (v-mn)/(mx-mn);
+const good = lowBetter ? 1-pct : pct;
+const col = good>0.72?C.green:good<0.28?C.red:C.text;
+return (
+<td key={c.key} style={{padding:“0.65rem 0.8rem”,textAlign:“center”,color:isRating?(v>=9?C.gold:v>=8?”#a0d080”:C.text):col,fontWeight:isRating?“bold”:“normal”}}>
+{c.fmt(v)}
+</td>
+);
+})}
+</tr>
+))}
+</tbody>
+</table>
+</div>
+<div style={{fontSize:“0.72rem”,color:C.dim,marginTop:“0.4rem”}}>{rows.length} of 30 teams</div>
+</div>
+);
+}
+
+// ———————————————————
+// POWER RANKINGS
+// ———————————————————
+function PowerRankingsPage() {
+const {teams,lastRefresh,dataStatus} = useLive();
+const sorted = useMemo(()=>[…teams].sort((a,b)=>b.powRating-a.powRating),[teams]);
+const prev   = useMemo(()=>[…BASELINE].sort((a,b)=>b.powRating-a.powRating),[]);
+const max    = sorted[0]?.powRating || 10;
+return (
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>POWER RANKINGS – {new Date().getFullYear()} <LiveBadge/></SectionHeader>
+<div style={{display:“grid”,gap:“0.45rem”}}>
+{sorted.map((t,i)=>{
+const pr   = prev.findIndex(p=>p.id===t.id);
+const rdD  = pr - i;
+const base = BASELINE.find(b=>b.id===t.id);
+const powD = t.powRating - base.powRating;
+return(
+<div key={t.id} style={{display:“grid”,gridTemplateColumns:“2.5rem 190px 1fr 4rem 4rem 3.5rem 4rem 4.5rem 4rem”,alignItems:“center”,gap:“0.5rem”,padding:“0.5rem 0.9rem”,background:i<3?“rgba(201,168,76,0.07)”:C.surface,border:`1px solid ${i<3?"rgba(201,168,76,0.22)":C.border}`,borderRadius:3}}>
+<div style={{fontWeight:“bold”,color:i===0?C.gold:i<3?”#aaa”:C.dim,fontSize:i<3?“1rem”:“0.85rem”,textAlign:“center”}}>{i+1}</div>
+<div style={{display:“flex”,alignItems:“center”,gap:“0.5rem”}}>
+<div style={{width:22,height:22,borderRadius:“50%”,background:t.color,flexShrink:0}}/>
+<div>
+<div style={{fontSize:“0.84rem”,fontWeight:500}}>{t.name}</div>
+<div style={{fontSize:“0.6rem”,color:t.liveGames>0?C.green:C.dim}}>
+{t.liveGames>0?`${t.wins}-${t.losses}${t.streak?" · "+t.streak:""}`:t.div}
+</div>
+</div>
+</div>
+<div style={{position:“relative”,height:7,background:C.bg,borderRadius:4,overflow:“hidden”}}>
+<div style={{position:“absolute”,left:0,top:0,bottom:0,width:`${(t.powRating/max)*100}%`,background:`linear-gradient(90deg,${t.color},${C.gold})`,borderRadius:4,transition:“width 0.7s”}}/>
+</div>
+<div style={{textAlign:“center”,fontSize:“0.76rem”,color:C.muted}}>{(t.winPct*100).toFixed(1)}%</div>
+<div style={{textAlign:“center”,fontSize:“0.76rem”,color:t.margin>=0?C.green:C.red}}>{t.margin>=0?”+”:””}{t.margin.toFixed(2)}</div>
+<div style={{textAlign:“center”,fontSize:“0.76rem”,color:C.muted}}>{t.era.toFixed(2)}</div>
+<div style={{textAlign:“center”,fontSize:“0.73rem”,color:rdD>0?C.green:rdD<0?C.red:C.dim}}>
+{rdD>0?`▲${rdD}`:rdD<0?`▼${Math.abs(rdD)}`:”–”}
+</div>
+<div style={{textAlign:“center”}}>
+<div style={{fontSize:“0.72rem”,fontWeight:“bold”,color:t.eloRating>t.powRating*100?C.green:t.eloRating<t.powRating*100?C.red:C.muted}}>
+{t.eloRating ? Math.round(t.eloRating) : “–”}
+</div>
+{t.eloContrib != null && Math.abs(t.eloContrib) > 0.05 && (
+<div style={{fontSize:“0.56rem”,color:t.eloContrib>0?C.green:C.red}}>{t.eloContrib>0?”+”:””}{t.eloContrib.toFixed(2)}</div>
+)}
+</div>
+<div style={{textAlign:“center”}}>
+<div style={{fontWeight:“bold”,fontSize:“0.88rem”,color:t.powRating>=9?C.gold:t.powRating>=8?”#a0d080”:C.text}}>{t.powRating.toFixed(2)}</div>
+{Math.abs(powD)>0.005&&<div style={{fontSize:“0.58rem”,color:powD>0?C.green:C.red}}>{powD>0?”+”:””}{powD.toFixed(2)}</div>}
+</div>
+</div>
+);
+})}
+</div>
+<div style={{fontSize:“0.7rem”,color:C.dim,marginTop:“0.6rem”}}>RANK · TEAM · BAR · WIN% · RDIFF · ERA · RANK Δ · ELO · PWR RTG</div>
+</div>
+);
+}
+
+// ———————————————————
+// XY EXPLORER
+// ———————————————————
+function XYExplorerPage() {
+const {teams} = useLive();
+const [xKey,setXKey] = useState(“era”);
+const [yKey,setYKey] = useState(“winPct”);
+const numCols = ALL_COLUMNS.filter(c=>![“streak”,“last10”].includes(c.key));
+const xs = teams.map(t=>t[xKey]).filter(v=>typeof v===“number”);
+const ys = teams.map(t=>t[yKey]).filter(v=>typeof v===“number”);
+const xMin=Math.min(…xs),xMax=Math.max(…xs),yMin=Math.min(…ys),yMax=Math.max(…ys);
+const W=570,H=370,pad=0.06;
+const toX = v => 30 + (pad + (v-xMin)/(xMax-xMin||1)*(1-2*pad)) * (W-40);
+const toY = v => 10 + (pad + (1-(v-yMin)/(yMax-yMin||1))*(1-2*pad)) * (H-40);
+return(
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>XY EXPLORER <LiveBadge/></SectionHeader>
+<div style={{display:“flex”,gap:“1rem”,marginBottom:“1rem”}}>
+<Ctrl label="X Axis"><select value={xKey} onChange={e=>setXKey(e.target.value)} style={ss}>{numCols.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</select></Ctrl>
+<Ctrl label="Y Axis"><select value={yKey} onChange={e=>setYKey(e.target.value)} style={ss}>{numCols.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</select></Ctrl>
+</div>
+<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:“1rem”,overflowX:“auto”}}>
+<svg width={W} height={H}>
+<line x1={30} y1={H-30} x2={W-10} y2={H-30} stroke={C.border} strokeWidth={1}/>
+<line x1={30} y1={10} x2={30} y2={H-30} stroke={C.border} strokeWidth={1}/>
+<text x={W/2} y={H-4} textAnchor="middle" fontSize={10} fill={C.muted}>{ALL_COLUMNS.find(c=>c.key===xKey)?.label}</text>
+<text x={10} y={H/2} textAnchor=“middle” fontSize={10} fill={C.muted} transform={`rotate(-90,10,${H/2})`}>{ALL_COLUMNS.find(c=>c.key===yKey)?.label}</text>
+{[0.25,0.5,0.75].map(p=>(
+<g key={p}>
+<line x1={30+p*(W-40)} y1={10} x2={30+p*(W-40)} y2={H-30} stroke={C.border} strokeWidth={0.5} strokeDasharray="3,4"/>
+<line x1={30} y1={10+p*(H-40)} x2={W-10} y2={10+p*(H-40)} stroke={C.border} strokeWidth={0.5} strokeDasharray="3,4"/>
+</g>
+))}
+{teams.map(t=>{
+const xv=t[xKey],yv=t[yKey];
+if(typeof xv!==“number”||typeof yv!==“number”)return null;
+return(<g key={t.id}><circle cx={toX(xv)} cy={toY(yv)} r={9} fill={t.color} opacity={0.88} stroke="#fff" strokeWidth={0.5}/><text x={toX(xv)} y={toY(yv)+4} textAnchor="middle" fontSize={6.5} fill="#fff" fontWeight="bold">{t.id}</text></g>);
+})}
+</svg>
+</div>
+</div>
+);
+}
+
+// ———————————————————
+// MATCHUP SIMULATOR
+// ———————————————————
+function MatchupSimPage() {
+const {teams} = useLive();
+const [homeId,setHomeId]         = useState(“NYY”);
+const [awayId,setAwayId]         = useState(“LAD”);
+const [hfa,setHfa]               = useState(true);
+const [homeSpSlot,setHomeSpSlot] = useState(2);
+const [awaySpSlot,setAwaySpSlot] = useState(2);
+const [result,setResult]         = useState(null);
+const [aiText,setAiText]         = useState(””);
+const [aiLoad,setAiLoad]         = useState(false);
+const [simH2H, setSimH2H]        = useState(null);
+const [simH2hData, setSimH2hData] = useState({});
+
+const sorted = useMemo(()=>[…teams].sort((a,b)=>a.name.localeCompare(b.name)),[teams]);
+const home = teams.find(t=>t.id===homeId)||BASELINE.find(t=>t.id===homeId);
+const away = teams.find(t=>t.id===awayId)||BASELINE.find(t=>t.id===awayId);
+const SP_LABELS = [“Ace (#1)”,“Solid #2”,“Mid-rotation #3”,“Back-end #4”,“5th Starter”];
+
+useEffect(() => { loadH2H().then(d => setSimH2hData(d)); }, []);
+useEffect(() => {
+if (home && away) {
+const rec = getH2HRecord(homeId, awayId, simH2hData);
+setSimH2H(rec);
+}
+}, [homeId, awayId, simH2hData]);
+
+async function simulate() {
+const r = predictMatchup(home, away, hfa, homeSpSlot, awaySpSlot);
+setResult(r); setAiText(””); setAiLoad(true);
+try {
+const res = await fetch(“https://api.anthropic.com/v1/messages”,{method:“POST”,headers:{“Content-Type”:“application/json”,“x-api-key”:getApiKey(),“anthropic-version”:“2023-06-01”,“anthropic-dangerous-direct-browser-access”:“true”},body:JSON.stringify({model:“claude-sonnet-4-20250514”,max_tokens:800,messages:[{role:“user”,content:`MLB analyst. 3-sentence preview: ${away.name} @ ${home.name}. Model: ${home.name} ${r.hWinPct}%, proj ${r.aRuns}-${r.hRuns}, O/U ${r.total}. Direct, one key edge.`}]})});
+const d = await res.json();
+setAiText(d.content?.map(b=>b.text||””).join(””)||””);
+} catch { setAiText(“Preview unavailable.”); }
+setAiLoad(false);
+}
+
+const StatRow = ({label,aVal,hVal,fmt,lowBetter}) => {
+const aC = lowBetter?(aVal<hVal?C.green:aVal>hVal?C.red:C.text):(aVal>hVal?C.green:aVal<hVal?C.red:C.text);
+const hC = lowBetter?(hVal<aVal?C.green:hVal>aVal?C.red:C.text):(hVal>aVal?C.green:hVal<aVal?C.red:C.text);
+return (
+<div style={{display:“grid”,gridTemplateColumns:“1fr 90px 1fr”,alignItems:“center”,marginBottom:“0.35rem”,background:C.surface,border:`1px solid ${C.border}`,borderRadius:3,padding:“0.4rem 0.8rem”}}>
+<div style={{textAlign:“right”,fontWeight:“bold”,color:aC}}>{fmt(aVal)}</div>
+<div style={{textAlign:“center”,fontSize:“0.63rem”,color:C.dim,letterSpacing:“0.07em”}}>{label}</div>
+<div style={{fontWeight:“bold”,color:hC}}>{fmt(hVal)}</div>
+</div>
+);
+};
+
+const PFlag = ({team}) => {
+const flag = pythagFlag(team);
+if (!flag) return null;
+const lucky = flag === “LUCKY”;
+return <span style={{fontSize:“0.58rem”,padding:“0.06rem 0.35rem”,borderRadius:8,marginLeft:“0.35rem”,background:lucky?“rgba(224,96,96,0.12)”:“rgba(93,200,122,0.12)”,border:`1px solid ${lucky?"rgba(224,96,96,0.3)":"rgba(93,200,122,0.3)"}`,color:lucky?C.red:C.green}}>{lucky?“LUCKY”:“UNLUCKY”} {Math.abs(((team.pythagDiff||0)*100)).toFixed(0)}pp</span>;
+};
+
+return (
+<div style={{padding:“1.5rem”,maxWidth:760}}>
+<SectionHeader>MATCHUP SIMULATOR <LiveBadge/></SectionHeader>
+
+```
+  <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:"1rem",alignItems:"end",marginBottom:"0.75rem"}}>
+    <Ctrl label="Away Team"><select value={awayId} onChange={e=>setAwayId(e.target.value)} style={ss}>{sorted.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></Ctrl>
+    <div style={{textAlign:"center",paddingBottom:"0.45rem"}}>
+      <div style={{color:C.gold,fontWeight:"bold",fontSize:"1.2rem"}}>@</div>
+      <label style={{display:"flex",alignItems:"center",gap:"0.3rem",fontSize:"0.7rem",color:C.muted,marginTop:"0.25rem",cursor:"pointer"}}>
+        <input type="checkbox" checked={hfa} onChange={e=>setHfa(e.target.checked)} style={{accentColor:C.gold}}/> HFA
+      </label>
+    </div>
+    <Ctrl label="Home Team"><select value={homeId} onChange={e=>setHomeId(e.target.value)} style={ss}>{sorted.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></Ctrl>
+  </div>
+
+  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.65rem",marginBottom:"0.9rem",padding:"0.7rem",background:C.surface,border:`1px solid ${C.border}`,borderRadius:4}}>
+    <div>
+      <div style={{fontSize:"0.6rem",letterSpacing:"0.1em",color:C.gold,marginBottom:"0.3rem"}}>AWAY STARTER</div>
+      <select value={awaySpSlot} onChange={e=>setAwaySpSlot(+e.target.value)} style={ss}>{SP_LABELS.map((l,i)=><option key={i} value={i}>{l}</option>)}</select>
+    </div>
+    <div>
+      <div style={{fontSize:"0.6rem",letterSpacing:"0.1em",color:C.gold,marginBottom:"0.3rem"}}>HOME STARTER</div>
+      <select value={homeSpSlot} onChange={e=>setHomeSpSlot(+e.target.value)} style={ss}>{SP_LABELS.map((l,i)=><option key={i} value={i}>{l}</option>)}</select>
+    </div>
+  </div>
+
+  <div style={{display:"flex",gap:"1rem",marginBottom:"0.9rem",fontSize:"0.73rem",flexWrap:"wrap"}}>
+    {away && <span style={{color:C.muted}}>{away.name}: {away.pythagWinPct?(away.pythagWinPct*100).toFixed(1)+"% Pyth":"baseline"}<PFlag team={away}/></span>}
+    {home && <span style={{color:C.muted}}>{home.name}: {home.pythagWinPct?(home.pythagWinPct*100).toFixed(1)+"% Pyth":"baseline"}<PFlag team={home}/></span>}
+  </div>
+
+  <button onClick={simulate} style={{padding:"0.55rem 2rem",background:C.gold,border:"none",borderRadius:3,color:"#111",fontWeight:"bold",fontSize:"0.82rem",letterSpacing:"0.1em",textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit",marginBottom:"1.25rem"}}>RUN SIMULATION</button>
+
+  {result && (
+    <div>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,marginBottom:"0.75rem",overflow:"hidden"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",padding:"1.1rem",alignItems:"center"}}>
+          <div style={{textAlign:"center"}}><TeamBadge team={away}/><div style={{fontSize:"2.4rem",fontWeight:"bold",lineHeight:1,marginTop:"0.35rem"}}>{result.aWinPct}<span style={{fontSize:"1rem"}}>%</span></div><div style={{fontSize:"0.7rem",color:C.muted}}>WIN PROB</div></div>
+          <div style={{textAlign:"center",padding:"0 0.85rem"}}>
+            <div style={{fontSize:"0.6rem",color:C.gold,letterSpacing:"0.12em",marginBottom:4}}>PROJ SCORE</div>
+            <div style={{fontSize:"1.35rem",fontWeight:"bold",color:C.gold}}>{result.aRuns} - {result.hRuns}</div>
+            <div style={{fontSize:"0.63rem",color:C.dim}}>O/U {result.total}</div>
+            <div style={{fontSize:"0.6rem",color:C.muted,marginTop:"0.2rem"}}>RL: {result.rlCoverPct}% home cover</div>
+          </div>
+          <div style={{textAlign:"center"}}><TeamBadge team={home}/><div style={{fontSize:"2.4rem",fontWeight:"bold",lineHeight:1,marginTop:"0.35rem"}}>{result.hWinPct}<span style={{fontSize:"1rem"}}>%</span></div><div style={{fontSize:"0.7rem",color:C.muted}}>WIN PROB</div></div>
+        </div>
+        <div style={{height:5,display:"flex"}}><div style={{width:`${result.aWinPct}%`,background:away.color,transition:"width 0.6s"}}/><div style={{flex:1,background:home.color}}/></div>
+      </div>
+
+      <StatRow label="WIN%" aVal={away.winPct} hVal={home.winPct} fmt={v=>(v*100).toFixed(1)+"%"} lowBetter={false}/>
+      <StatRow label="ERA"  aVal={away.era} hVal={home.era} fmt={v=>v.toFixed(2)} lowBetter={true}/>
+      <StatRow label="OPS"  aVal={away.ops} hVal={home.ops} fmt={v=>v.toFixed(3)} lowBetter={false}/>
+      <StatRow label="PWR"  aVal={away.powRating} hVal={home.powRating} fmt={v=>v.toFixed(2)} lowBetter={false}/>
+
+      <div style={{background:"rgba(201,168,76,0.05)",border:`1px solid rgba(201,168,76,0.2)`,borderRadius:4,padding:"0.9rem 1.1rem",marginTop:"0.9rem"}}>
+        <div style={{fontSize:"0.62rem",letterSpacing:"0.14em",color:C.gold,marginBottom:"0.4rem"}}>AI PREVIEW</div>
+        {aiLoad?<Dots/>:<p style={{margin:0,lineHeight:1.75,fontSize:"0.86rem",color:"#c8c4b4"}}>{aiText}</p>}
+      </div>
+    </div>
+  )}
+</div>
+```
+
+);
+}
+
+// ———————————————————
+// SCOREBOARD
+// ———————————————————
+function ScoreboardPage() {
+const {allGames,loading,refresh,dataStatus} = useLive();
+
+const grouped = useMemo(()=>{
+const out = {};
+[…allGames].sort((a,b)=>new Date(b.start_time)-new Date(a.start_time)).forEach(g=>{
+const ht=BASELINE.find(t=>t.id===g.home);
+const at=BASELINE.find(t=>t.id===g.away);
+if(!ht||!at)return;
+const day = fmtDate(g.start_time);
+if(!out[day])out[day]=[];
+out[day].push({…g,homeTeam:ht,awayTeam:at});
+});
+return out;
+},[allGames]);
+
+const days = Object.keys(grouped).slice(0,5);
+
+if(loading&&days.length===0) return <div style={{padding:“3rem”,textAlign:“center”,color:C.muted}}>Loading…</div>;
+
+return(
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>SCOREBOARD <LiveBadge/></SectionHeader>
+{days.length===0?(
+<div style={{padding:“2rem”,textAlign:“center”,color:C.muted}}>
+No games loaded. <button onClick={refresh} style={{background:“none”,border:“none”,color:C.gold,cursor:“pointer”,fontFamily:“inherit”}}>Refresh →</button>
+</div>
+):days.map(day=>(
+<div key={day} style={{marginBottom:“1.5rem”}}>
+<div style={{fontSize:“0.68rem”,letterSpacing:“0.14em”,color:C.gold,marginBottom:“0.45rem”,paddingBottom:“0.3rem”,borderBottom:`1px solid ${C.border}`}}>{day.toUpperCase()}</div>
+<div style={{display:“grid”,gap:“0.35rem”}}>
+{grouped[day].map((g,i)=>{
+const isFinal=g.status===“final”;
+const isLive =g.status===“live”;
+const homeWon=isFinal&&g.hScore!=null&&g.aScore!=null&&g.hScore>g.aScore;
+const awayWon=isFinal&&g.hScore!=null&&g.aScore!=null&&g.aScore>g.hScore;
+return(
+<div key={i} style={{background:C.surface,border:`1px solid ${isLive?"rgba(93,200,122,0.3)":C.border}`,borderRadius:4,padding:“0.6rem 1rem”,display:“grid”,gridTemplateColumns:“1fr 80px 1fr”,alignItems:“center”,gap:“0.75rem”}}>
+<div style={{display:“flex”,alignItems:“center”,gap:“0.45rem”}}>
+<div style={{width:20,height:20,borderRadius:“50%”,background:g.awayTeam.color,flexShrink:0}}/>
+<span style={{fontSize:“0.85rem”,color:awayWon?C.text:isFinal?C.dim:C.text,fontWeight:awayWon?“bold”:“normal”}}>{g.awayTeam.name}</span>
+{g.aScore!=null&&<span style={{fontWeight:“bold”,fontSize:“1.05rem”,marginLeft:“auto”,color:awayWon?C.green:isFinal?C.muted:C.text}}>{g.aScore}</span>}
+</div>
+<div style={{textAlign:“center”}}>
+{isFinal?<span style={{fontSize:“0.7rem”,color:C.dim}}>FINAL</span>
+:isLive?<div><div style={{fontSize:“0.7rem”,color:C.green,fontWeight:“bold”}}>LIVE</div></div>
+:<span style={{fontSize:“0.75rem”,color:C.muted}}>{fmtTime(g.start_time)}</span>}
+</div>
+<div style={{display:“flex”,alignItems:“center”,gap:“0.45rem”,justifyContent:“flex-end”}}>
+{g.hScore!=null&&<span style={{fontWeight:“bold”,fontSize:“1.05rem”,color:homeWon?C.green:isFinal?C.muted:C.text}}>{g.hScore}</span>}
+<span style={{fontSize:“0.85rem”,color:homeWon?C.text:isFinal?C.dim:C.text,fontWeight:homeWon?“bold”:“normal”,marginLeft:“auto”}}>{g.homeTeam.name}</span>
+<div style={{width:20,height:20,borderRadius:“50%”,background:g.homeTeam.color,flexShrink:0}}/>
+</div>
+</div>
+);
+})}
+</div>
+</div>
+))}
+</div>
+);
+}
+
+// ———————————————————
+// ODDS
+// ———————————————————
+function OddsPage() {
+const {teams} = useLive();
+const avg = teams.reduce((s,t)=>s+t.powRating,0)/teams.length;
+return(
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>DERIVED ODDS <LiveBadge/></SectionHeader>
+<div style={{overflowX:“auto”,border:`1px solid ${C.border}`,borderRadius:4}}>
+<table style={{width:“100%”,borderCollapse:“collapse”,fontSize:“0.82rem”}}>
+<thead>
+<tr style={{background:C.header}}>{[“TEAM”,“W-L”,“PWR RTG”,“WIN%”,“ML HOME”,“ML AWAY”,“O/U”].map(h=><th key={h} style={th}>{h}</th>)}</tr>
+<tr><td colSpan={7} style={{height:3,background:C.gold,padding:0}}/></tr>
+</thead>
+<tbody>
+{[…teams].sort((a,b)=>b.powRating-a.powRating).map((t,i)=>{
+const hP=eloWinProb(t.powRating+0.22,avg);
+const aP=eloWinProb(t.powRating,avg+0.22);
+const ou=(t.runsFor + teams.reduce((s,x)=>s+x.runsAgainst,0)/teams.length).toFixed(1);
+return(
+<tr key={t.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?“transparent”:“rgba(255,255,255,0.016)”}}>
+<td style={{padding:“0.6rem 1rem”}}><div style={{display:“flex”,alignItems:“center”,gap:“0.5rem”}}><div style={{width:18,height:18,borderRadius:“50%”,background:t.color,flexShrink:0}}/>{t.name}</div></td>
+<td style={{padding:“0.6rem 0.8rem”,textAlign:“center”,color:C.muted}}>{t.liveGames>0?`${t.wins}-${t.losses}`:”–”}</td>
+<td style={{padding:“0.6rem 0.8rem”,textAlign:“center”,fontWeight:“bold”,color:t.powRating>=9?C.gold:t.powRating>=8?”#a0d080”:C.text}}>{t.powRating.toFixed(2)}</td>
+<td style={{padding:“0.6rem 0.8rem”,textAlign:“center”}}>{(t.winPct*100).toFixed(1)}%</td>
+<td style={{padding:“0.6rem 0.8rem”,textAlign:“center”,fontWeight:“bold”,color:hP>=0.55?C.green:hP<=0.45?C.red:C.text}}>{toML(hP)}</td>
+<td style={{padding:“0.6rem 0.8rem”,textAlign:“center”,fontWeight:“bold”,color:aP>=0.55?C.green:aP<=0.45?C.red:C.text}}>{toML(aP)}</td>
+<td style={{padding:“0.6rem 0.8rem”,textAlign:“center”,color:C.muted}}>{ou}</td>
+</tr>
+);
+})}
+</tbody>
+</table>
+</div>
+</div>
+);
+}
+
+// ———————————————————
+// DAILY BETTING LINES
+// ———————————————————
+const OPENING_WEEK_ODDS = [
+{“id”:“od26_01”,“sport_key”:“baseball_mlb”,“commence_time”:“2026-03-26T00:05:00Z”,“home_team”:“San Francisco Giants”,“away_team”:“New York Yankees”,“bookmakers”:[{“key”:“draftkings”,“markets”:[
+{“key”:“h2h”,“outcomes”:[{“name”:“San Francisco Giants”,“price”:101},{“name”:“New York Yankees”,“price”:-123}]},
+{“key”:“spreads”,“outcomes”:[{“name”:“San Francisco Giants”,“price”:182,“point”:1.5},{“name”:“New York Yankees”,“price”:-149,“point”:-1.5}]},
+{“key”:“totals”,“outcomes”:[{“name”:“Over”,“price”:-112,“point”:7.0},{“name”:“Under”,“price”:-110,“point”:7.0}]}
+]}]},
+{“id”:“od26_02”,“sport_key”:“baseball_mlb”,“commence_time”:“2026-03-26T17:15:00Z”,“home_team”:“New York Mets”,“away_team”:“Pittsburgh Pirates”,“bookmakers”:[{“key”:“draftkings”,“markets”:[
+{“key”:“h2h”,“outcomes”:[{“name”:“New York Mets”,“price”:-122},{“name”:“Pittsburgh Pirates”,“price”:101}]},
+{“key”:“spreads”,“outcomes”:[{“name”:“New York Mets”,“price”:-208,“point”:-1.5},{“name”:“Pittsburgh Pirates”,“price”:168,“point”:1.5}]},
+{“key”:“totals”,“outcomes”:[{“name”:“Over”,“price”:-121,“point”:6.5},{“name”:“Under”,“price”:-101,“point”:6.5}]}
+]}]},
+{“id”:“od26_05”,“sport_key”:“baseball_mlb”,“commence_time”:“2026-03-26T19:05:00Z”,“home_team”:“Baltimore Orioles”,“away_team”:“Minnesota Twins”,“bookmakers”:[{“key”:“draftkings”,“markets”:[
+{“key”:“h2h”,“outcomes”:[{“name”:“Baltimore Orioles”,“price”:-145},{“name”:“Minnesota Twins”,“price”:122}]},
+{“key”:“spreads”,“outcomes”:[{“name”:“Baltimore Orioles”,“price”:-195,“point”:-1.5},{“name”:“Minnesota Twins”,“price”:162,“point”:1.5}]},
+{“key”:“totals”,“outcomes”:[{“name”:“Over”,“price”:-110,“point”:8.5},{“name”:“Under”,“price”:-112,“point”:8.5}]}
+]}]},
+{“id”:“od26_06”,“sport_key”:“baseball_mlb”,“commence_time”:“2026-03-26T19:05:00Z”,“home_team”:“Philadelphia Phillies”,“away_team”:“Texas Rangers”,“bookmakers”:[{“key”:“draftkings”,“markets”:[
+{“key”:“h2h”,“outcomes”:[{“name”:“Philadelphia Phillies”,“price”:-162},{“name”:“Texas Rangers”,“price”:138}]},
+{“key”:“spreads”,“outcomes”:[{“name”:“Philadelphia Phillies”,“price”:-108,“point”:-1.5},{“name”:“Texas Rangers”,“price”:-132,“point”:1.5}]},
+{“key”:“totals”,“outcomes”:[{“name”:“Over”,“price”:-115,“point”:8.0},{“name”:“Under”,“price”:-107,“point”:8.0}]}
+]}]},
+{“id”:“od26_10”,“sport_key”:“baseball_mlb”,“commence_time”:“2026-03-26T20:10:00Z”,“home_team”:“Houston Astros”,“away_team”:“Los Angeles Angels”,“bookmakers”:[{“key”:“draftkings”,“markets”:[
+{“key”:“h2h”,“outcomes”:[{“name”:“Houston Astros”,“price”:-210},{“name”:“Los Angeles Angels”,“price”:172}]},
+{“key”:“spreads”,“outcomes”:[{“name”:“Houston Astros”,“price”:-108,“point”:-1.5},{“name”:“Los Angeles Angels”,“price”:-132,“point”:1.5}]},
+{“key”:“totals”,“outcomes”:[{“name”:“Over”,“price”:-112,“point”:8.5},{“name”:“Under”,“price”:-110,“point”:8.5}]}
+]}]},
+{“id”:“od26_15”,“sport_key”:“baseball_mlb”,“commence_time”:“2026-03-27T20:10:00Z”,“home_team”:“Los Angeles Dodgers”,“away_team”:“Arizona Diamondbacks”,“bookmakers”:[{“key”:“draftkings”,“markets”:[
+{“key”:“h2h”,“outcomes”:[{“name”:“Los Angeles Dodgers”,“price”:-258},{“name”:“Arizona Diamondbacks”,“price”:215}]},
+{“key”:“spreads”,“outcomes”:[{“name”:“Los Angeles Dodgers”,“price”:115,“point”:-1.5},{“name”:“Arizona Diamondbacks”,“price”:-125,“point”:1.5}]},
+{“key”:“totals”,“outcomes”:[{“name”:“Over”,“price”:-112,“point”:8.5},{“name”:“Under”,“price”:-110,“point”:8.5}]}
+]}]},
+];
+
+function GamblingPage() {
+const {teams, allGames, loading, refresh} = useLive();
+const [myBets, setMyBets]     = useState([]);
+const [aiPick, setAiPick]     = useState(””);
+const [aiLoad, setAiLoad]     = useState(false);
+const [selGame, setSelGame]   = useState(null);
+const [liveOdds, setLiveOdds] = useState([]);
+const [oddsLoading, setOddsLoading] = useState(false);
+const [oddsUpdated, setOddsUpdated] = useState(null);
+const [h2hData, setH2hData] = useState({});
+
+useEffect(() => {
+loadH2H().then(data => setH2hData(data));
+setLiveOdds(OPENING_WEEK_ODDS);
+setOddsUpdated(new Date(“2026-03-26T00:00:00Z”));
+}, []);
+
+const NAME_TO_ABBR = {
+“Los Angeles Dodgers”:“LAD”,“Atlanta Braves”:“ATL”,“New York Yankees”:“NYY”,
+“Houston Astros”:“HOU”,“Baltimore Orioles”:“BAL”,“Philadelphia Phillies”:“PHI”,
+“Milwaukee Brewers”:“MIL”,“Toronto Blue Jays”:“TOR”,“San Diego Padres”:“SDP”,
+“Texas Rangers”:“TEX”,“Seattle Mariners”:“SEA”,“St. Louis Cardinals”:“STL”,
+“Chicago Cubs”:“CHC”,“Minnesota Twins”:“MIN”,“Cleveland Guardians”:“CLE”,
+“New York Mets”:“NYM”,“Arizona Diamondbacks”:“ARI”,“San Francisco Giants”:“SFG”,
+“Tampa Bay Rays”:“TBR”,“Boston Red Sox”:“BOS”,“Detroit Tigers”:“DET”,
+“Kansas City Royals”:“KCR”,“Washington Nationals”:“WSN”,“Miami Marlins”:“MIA”,
+“Los Angeles Angels”:“LAA”,“Pittsburgh Pirates”:“PIT”,“Cincinnati Reds”:“CIN”,
+“Colorado Rockies”:“COL”,“Chicago White Sox”:“CWS”,“Oakland Athletics”:“OAK”,
+};
+
+const oddsMap = useMemo(() => {
+const map = {};
+for (const game of liveOdds) {
+const h = NAME_TO_ABBR[game.home_team];
+const a = NAME_TO_ABBR[game.away_team];
+if (!h || !a) continue;
+let hMLs=[], aMLs=[], overs=[], unders=[];
+// spreads: home favored = negative point, away = positive point
+let hSpreadPrices=[], hSpreadPts=[], aSpreadPrices=[], aSpreadPts=[];
+for (const bm of (game.bookmakers || [])) {
+for (const mkt of (bm.markets || [])) {
+if (mkt.key === “h2h”) {
+for (const o of mkt.outcomes) {
+if (NAME_TO_ABBR[o.name] === h) hMLs.push(o.price);
+if (NAME_TO_ABBR[o.name] === a) aMLs.push(o.price);
+}
+}
+if (mkt.key === “spreads”) {
+for (const o of mkt.outcomes) {
+const abbr = NAME_TO_ABBR[o.name];
+if (abbr === h) { hSpreadPrices.push(o.price); hSpreadPts.push(o.point); }
+if (abbr === a) { aSpreadPrices.push(o.price); aSpreadPts.push(o.point); }
+}
+}
+if (mkt.key === “totals”) {
+for (const o of mkt.outcomes) {
+if (o.name === “Over”)  overs.push({price:o.price,point:o.point});
+if (o.name === “Under”) unders.push({price:o.price,point:o.point});
+}
+}
+}
+}
+const avgN  = arr => arr.length ? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length) : null;
+const avgPt = arr => arr.length ? +(arr.reduce((s,v)=>s+v.point,0)/arr.length).toFixed(1) : null;
+const avgPr = arr => arr.length ? Math.round(arr.reduce((s,v)=>s+v.price,0)/arr.length) : null;
+const avgNF = arr => arr.length ? +(arr.reduce((s,v)=>s+v,0)/arr.length).toFixed(1) : null;
+const hML = avgN(hMLs), aML = avgN(aMLs);
+const ouPt = avgPt(overs), overPr = avgPr(overs), underPr = avgPr(unders);
+const hSpreadPt  = avgNF(hSpreadPts);
+const hSpreadPr  = avgN(hSpreadPrices);
+const aSpreadPt  = avgNF(aSpreadPts);
+const aSpreadPr  = avgN(aSpreadPrices);
+const fmt = v => v != null ? (v>0?”+”+v:String(v)) : null;
+map[`${h}|${a}`] = {
+hML: fmt(hML), aML: fmt(aML),
+hMLraw: hML, aMLraw: aML,
+ou: ouPt!=null ? String(ouPt) : null, ouRaw: ouPt,
+overPr:  overPr!=null  ? fmt(overPr)  : null,
+underPr: underPr!=null ? fmt(underPr) : null,
+// spread/run line from sportsbooks
+hSpreadPt, hSpreadPr: fmt(hSpreadPr),
+aSpreadPt, aSpreadPr: fmt(aSpreadPr),
+books: game.bookmakers?.length || 0,
+commence_time: game.commence_time,
+};
+}
+return map;
+}, [liveOdds]);
+
+function getT(abbr) { return teams.find(t=>t.id===abbr) || BASELINE.find(t=>t.id===abbr); }
+
+function modelOdds(homeAbbr, awayAbbr) {
+const h = getT(homeAbbr), a = getT(awayAbbr);
+if (!h || !a) return null;
+const park = getPark(homeAbbr);
+const sim = runSimulation(h, a, true);
+const h2h = applyH2HAdj(sim.hWinProb, homeAbbr, awayAbbr, h2hData);
+const hWin = h2h.prob;
+const aWin = 1 - hWin;
+const hRLProb = sim.rlCoverPct / 100;
+const aRLProb = sim.aRLCoverPct / 100;
+const vegasLine = oddsMap[`${homeAbbr}|${awayAbbr}`];
+const ouLine = vegasLine?.ouRaw || sim.avgTotal;
+const overProb = simOverProb(sim.totalDist, ouLine);
+return {
+hTeam: h, aTeam: a,
+hML: toML(hWin), aML: toML(aWin),
+hWin, aWin,
+hWinPct: (hWin*100).toFixed(0), aWinPct: (aWin*100).toFixed(0),
+hRL: toML(hRLProb)+” (-1.5)”, aRL: toML(aRLProb)+” (+1.5)”,
+ou: +ouLine.toFixed(1),
+overPct: +(overProb*100).toFixed(1),
+underPct: +((1-overProb)*100).toFixed(1),
+parkName: park.park, parkFactor: park.pf,
+sim, h2hRecord: h2h.h2hRecord, h2hAdj: h2h.h2hAdj,
+source: “model”,
+};
+}
+
+function buildGameOdds(g) {
+const base = modelOdds(g.home, g.away);
+if (!base) return null;
+const live = oddsMap[`${g.home}|${g.away}`];
+if (live) {
+return {
+…base,
+// Model outputs (never overwritten)
+modelML:      base.hML,  modelAML:     base.aML,
+modelHWin:    base.hWin, modelAWin:    base.aWin,
+modelHWinPct: base.hWinPct, modelAWinPct: base.aWinPct,
+modelOU:      base.ou,
+modelHRL: base.hRL, modelARL: base.aRL,
+modelHRLProb: base.sim?.rlCoverPct ?? null,   // % home covers -1.5
+modelARLProb: base.sim?.aRLCoverPct ?? null,
+modelOverPct: base.overPct, modelUnderPct: base.underPct,
+// Vegas lines
+vegasML:      live.hML,  vegasAML:     live.aML,
+vegasMLraw:   live.hMLraw, vegasAMLraw: live.aMLraw,
+vegasOU:      live.ou,   vegasOURaw:   live.ouRaw,
+vegasOverPr:  live.overPr, vegasUnderPr: live.underPr,
+vegasHSpreadPt: live.hSpreadPt, vegasHSpreadPr: live.hSpreadPr,
+vegasASpreadPt: live.aSpreadPt, vegasASpreadPr: live.aSpreadPr,
+books: live.books,
+// Display ML uses Vegas price, win% stays as model
+hML: live.hML || base.hML, aML: live.aML || base.aML,
+hWinPct: base.hWinPct, aWinPct: base.aWinPct,
+ou: live.ou || base.ou,
+overPr: live.overPr || “-110”, underPr: live.underPr || “-110”,
+source: “live”,
+};
+}
+return {
+…base,
+modelML: base.hML, modelAML: base.aML,
+modelHWin: base.hWin, modelAWin: base.aWin,
+modelHWinPct: base.hWinPct, modelAWinPct: base.aWinPct,
+modelOU: base.ou,
+modelHRL: base.hRL, modelARL: base.aRL,
+modelHRLProb: base.sim?.rlCoverPct ?? null,
+modelARLProb: base.sim?.aRLCoverPct ?? null,
+modelOverPct: base.overPct, modelUnderPct: base.underPct,
+vegasML: null, vegasAML: null, vegasMLraw: null, vegasAMLraw: null,
+vegasOU: null, vegasOURaw: null,
+vegasHSpreadPt: null, vegasHSpreadPr: null,
+vegasASpreadPt: null, vegasASpreadPr: null,
+};
+}
+
+const processed = useMemo(() => {
+return allGames
+.filter(g => getT(g.home) && getT(g.away))
+.map(g => {
+const odds = buildGameOdds(g);
+if (!odds) return null;
+const isFinal = g.status === “final” || g.status === “closed”;
+const isLive  = g.status === “live”  || g.status === “inprogress”;
+return { …g, odds, isFinal, isLive };
+})
+.filter(Boolean)
+.sort((a, b) => {
+const ord = g => g.isLive ? 0 : (!g.isFinal && new Date(g.start_time) > new Date() ? 1 : 2);
+return ord(a) - ord(b) || new Date(a.start_time) - new Date(b.start_time);
+});
+}, [allGames, teams, oddsMap, h2hData]);
+
+const todayStr    = new Date().toDateString();
+const tomorrow    = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowStr = tomorrow.toDateString();
+const [selectedDay, setSelectedDay] = useState(“today”);
+const todayG    = processed.filter(g => new Date(g.start_time).toDateString() === todayStr);
+const tomorrowG = processed.filter(g => new Date(g.start_time).toDateString() === tomorrowStr);
+const displayGames = selectedDay === “today” ? todayG : tomorrowG;
+
+function toggleBet(id,side,line,type){setMyBets(p=>{const e=p.find(b=>b.id===id&&b.side===side);return e?p.filter(b=>!(b.id===id&&b.side===side)):[…p,{id,side,line,type}];});}
+function hasBet(id,side){return myBets.some(b=>b.id===id&&b.side===side);}
+
+async function getAI(game) {
+setSelGame(game); setAiPick(””); setAiLoad(true);
+try {
+const r = await fetch(“https://api.anthropic.com/v1/messages”, {
+method:“POST”, headers:{“Content-Type”:“application/json”,“x-api-key”:getApiKey(),“anthropic-version”:“2023-06-01”,“anthropic-dangerous-direct-browser-access”:“true”},
+body: JSON.stringify({
+model:“claude-sonnet-4-20250514”, max_tokens:400,
+messages:[{role:“user”, content:
+`2-sentence sharp MLB betting take. ${game.away} ML ${game.odds.aML} @ ${game.home} ML ${game.odds.hML}, O/U ${game.odds.ou}. Model win%: ${game.home} ${game.odds.hWinPct}% vs ${game.away} ${game.odds.aWinPct}%. One sharp edge, direct.`
+}]
+})
+});
+const d = await r.json();
+setAiPick(d.content?.map(b=>b.text||””).join(””)||””);
+} catch { setAiPick(“Unavailable.”); }
+setAiLoad(false);
+}
+
+return (
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>DAILY BETTING LINES <LiveBadge/></SectionHeader>
+
+```
+  <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.25rem"}}>
+    {[
+      { id:"today",    label:"Today",    date:new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}), count:todayG.length },
+      { id:"tomorrow", label:"Tomorrow", date:tomorrow.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}),   count:tomorrowG.length },
+    ].map(tab => (
+      <button key={tab.id} onClick={()=>setSelectedDay(tab.id)} style={{
+        flex:1, padding:"0.7rem 1rem", borderRadius:6, cursor:"pointer", fontFamily:"inherit",
+        background:selectedDay===tab.id?"rgba(201,168,76,0.12)":C.surface,
+        border:`2px solid ${selectedDay===tab.id?C.gold:C.border}`,
+        color:selectedDay===tab.id?C.goldLight:C.muted,
+      }}>
+        <div style={{fontSize:"0.95rem",fontWeight:"bold"}}>{tab.label}</div>
+        <div style={{fontSize:"0.68rem",marginTop:"0.15rem",color:selectedDay===tab.id?C.gold:C.dim}}>
+          {tab.date} · {tab.count} games
+        </div>
+      </button>
+    ))}
+  </div>
+
+  {displayGames.length === 0 && (
+    <div style={{padding:"2.5rem",textAlign:"center",color:C.muted,background:C.surface,borderRadius:6,border:`1px solid ${C.border}`}}>
+      <div style={{fontSize:"0.85rem"}}>No {selectedDay} games loaded</div>
+      <button onClick={refresh} style={{marginTop:"1rem",background:"none",border:`1px solid ${C.border}`,color:C.gold,padding:"0.4rem 1rem",borderRadius:3,cursor:"pointer",fontFamily:"inherit",fontSize:"0.82rem"}}>Refresh Data</button>
+    </div>
+  )}
+
+  <div style={{display:"grid",gap:"1rem"}}>
+    {displayGames.map(game => {
+      const {odds, isFinal, isLive} = game;
+      const mHWin = parseFloat(odds.modelHWinPct || odds.hWinPct);
+      const mAWin = parseFloat(odds.modelAWinPct || odds.aWinPct);
+      const isVegas = odds?.source === "live";
+
+      // Vegas implied win% from ML price
+      const vHMLraw = odds.vegasMLraw;
+      const vAMLraw = odds.vegasAMLraw;
+      const vegasHWin = vHMLraw != null
+        ? (vHMLraw < 0 ? Math.abs(vHMLraw)/(Math.abs(vHMLraw)+100) : 100/(vHMLraw+100))
+        : null;
+      const vegasAWin = vAMLraw != null
+        ? (vAMLraw < 0 ? Math.abs(vAMLraw)/(Math.abs(vAMLraw)+100) : 100/(vAMLraw+100))
+        : null;
+      const vegasHWinPct = vegasHWin != null ? (vegasHWin*100).toFixed(0) : null;
+      const vegasAWinPct = vegasAWin != null ? (vegasAWin*100).toFixed(0) : null;
+
+      // ML edge: model vs Vegas implied (home perspective)
+      const mlEdgePp = isVegas && vegasHWin != null
+        ? Math.round((mHWin/100 - vegasHWin) * 100) : null;
+
+      // Run line
+      const sim = odds.sim;
+      const modelHRLProb = odds.modelHRLProb ?? (sim ? sim.rlCoverPct : null);
+      const modelARLProb = odds.modelARLProb ?? (sim ? sim.aRLCoverPct : null);
+      // Vegas RL implied prob from price
+      const vHSpreadPr = odds.vegasHSpreadPr ? parseFloat(odds.vegasHSpreadPr) : null;
+      const vegasHRLWin = vHSpreadPr != null
+        ? (vHSpreadPr < 0 ? Math.abs(vHSpreadPr)/(Math.abs(vHSpreadPr)+100) : 100/(vHSpreadPr+100))
+        : null;
+      const vegasHRLPct = vegasHRLWin != null ? (vegasHRLWin*100).toFixed(0) : null;
+      const rlEdgePp = modelHRLProb != null && vegasHRLWin != null
+        ? Math.round((modelHRLProb/100 - vegasHRLWin) * 100) : null;
+
+      // O/U
+      const vegasOUNum = parseFloat(odds.vegasOU || odds.ou) || 9.0;
+      const simOverProb_ = sim ? simOverProb(sim.totalDist, vegasOUNum) : 0.5;
+      const overPctClamped = Math.max(20, Math.min(80, Math.round(simOverProb_ * 100)));
+      const underPctClamped = 100 - overPctClamped;
+      // Vegas O/U implied prob from price
+      const vOverPr = odds.vegasOverPr ? parseFloat(odds.vegasOverPr) : null;
+      const vegasOverWin = vOverPr != null
+        ? (vOverPr < 0 ? Math.abs(vOverPr)/(Math.abs(vOverPr)+100) : 100/(vOverPr+100))
+        : null;
+      const vegasOverPct = vegasOverWin != null ? (vegasOverWin*100).toFixed(0) : null;
+      const ouEdgePp = vegasOverWin != null
+        ? Math.round((overPctClamped/100 - vegasOverWin) * 100) : null;
+
+      // Overall edge score
+      const mlConv  = Math.abs(mHWin - 50);
+      const rlConv  = modelHRLProb != null ? Math.abs(modelHRLProb - 50) : 0;
+      const ouConv  = Math.abs(overPctClamped - 50);
+      const vsVegas = mlEdgePp != null ? Math.min(10, Math.abs(mlEdgePp) / 1.5) : 0;
+      const edgeScore = Math.max(1, Math.min(10, Math.round(
+        mlConv/2.5*0.30 + rlConv/2.5*0.25 + ouConv/2.5*0.15 + vsVegas*0.30
+      )));
+      const edgeColor = edgeScore>=8?C.green:edgeScore>=6?"#7ec87e":edgeScore>=4?C.gold:C.muted;
+
+      return (
+        <div key={game.id} style={{background:C.surface,border:`1px solid ${isLive?"rgba(93,200,122,0.4)":isFinal?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.1)"}`,borderRadius:8,overflow:"hidden"}}>
+
+          {/* ── HEADER: matchup + edge ── */}
+          <div style={{padding:"0.85rem 1rem 0.6rem",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:"0.5rem",flexWrap:"wrap"}}>
+                <div style={{width:18,height:18,borderRadius:"50%",background:odds.aTeam.color,flexShrink:0}}/>
+                <span style={{fontSize:"0.95rem",fontWeight:"bold",color:isFinal?C.muted:C.text}}>{odds.aTeam.name}</span>
+                <span style={{color:C.dim,fontSize:"0.85rem"}}>@</span>
+                <div style={{width:18,height:18,borderRadius:"50%",background:odds.hTeam.color,flexShrink:0}}/>
+                <span style={{fontSize:"0.95rem",fontWeight:"bold",color:isFinal?C.muted:C.text}}>{odds.hTeam.name}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:"0.5rem",marginTop:"0.3rem",flexWrap:"wrap"}}>
+                <span style={{fontSize:"0.68rem",color:isLive?C.green:isFinal?C.dim:C.muted}}>
+                  {isLive?"● LIVE":isFinal?"FINAL":fmtTime(game.start_time)+" ET"}
+                </span>
+                {isVegas && <span style={{fontSize:"0.62rem",padding:"0.1rem 0.4rem",borderRadius:10,background:"rgba(93,200,122,0.12)",border:"1px solid rgba(93,200,122,0.3)",color:C.green}}>{odds.books} books</span>}
+                {odds.h2hRecord && <span style={{fontSize:"0.62rem",padding:"0.1rem 0.4rem",borderRadius:10,background:"rgba(160,130,220,0.1)",border:"1px solid rgba(160,130,220,0.3)",color:"#b090e0"}}>H2H {odds.h2hRecord.teamWins}-{odds.h2hRecord.oppWins}</span>}
+                {odds.parkFactor && odds.parkFactor !== 1.0 && (
+                  <span style={{fontSize:"0.62rem",padding:"0.1rem 0.4rem",borderRadius:10,
+                    background:odds.parkFactor>=1.08?"rgba(224,96,96,0.1)":odds.parkFactor<=0.93?"rgba(93,200,122,0.1)":"rgba(255,255,255,0.04)",
+                    color:odds.parkFactor>=1.08?C.red:odds.parkFactor<=0.93?C.green:C.dim}}>
+                    {odds.parkName} {odds.parkFactor.toFixed(2)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0,marginLeft:"0.75rem"}}>
+              <div style={{fontSize:"1.1rem",fontWeight:"bold",color:edgeColor}}>Edge {edgeScore}/10</div>
+              {mlEdgePp != null && mlEdgePp !== 0 && (
+                <div style={{fontSize:"0.7rem",color:mlEdgePp>0?C.green:C.red,fontWeight:"bold"}}>
+                  ML {mlEdgePp>0?"+":""}{mlEdgePp}pp vs Vegas
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── WIN PROB BAR ── */}
+          <div style={{padding:"0 1rem 0.65rem"}}>
+            <div style={{height:7,borderRadius:4,overflow:"hidden",display:"flex",background:C.bg}}>
+              <div style={{width:`${mHWin}%`,background:odds.hTeam.color,transition:"width 0.6s"}}/>
+              <div style={{flex:1,background:odds.aTeam.color}}/>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:"0.25rem"}}>
+              <span style={{fontSize:"0.7rem",color:C.muted}}>{odds.hTeam.name} <strong style={{color:C.text}}>{mHWin}%</strong></span>
+              <span style={{fontSize:"0.7rem",color:C.muted}}>{odds.aTeam.name} <strong style={{color:C.text}}>{mAWin}%</strong></span>
+            </div>
+          </div>
+
+          {/* ── FINAL SCORE ── */}
+          {(isFinal || isLive) && game.hScore != null && game.aScore != null && (
+            <div style={{margin:"0 1rem 0.65rem",background:C.bg,borderRadius:6,padding:"0.45rem 0.75rem",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:"0.85rem"}}>{odds.aTeam.name} <strong style={{fontSize:"1.25rem",color:game.aScore>game.hScore?C.green:C.muted,marginLeft:"0.3rem"}}>{game.aScore}</strong></span>
+              <span style={{fontSize:"0.68rem",color:C.dim}}>FINAL</span>
+              <span style={{fontSize:"0.85rem"}}><strong style={{fontSize:"1.25rem",color:game.hScore>game.aScore?C.green:C.muted,marginRight:"0.3rem"}}>{game.hScore}</strong>{odds.hTeam.name}</span>
+            </div>
+          )}
+
+          {/* ── MODEL vs VEGAS TABLE ── */}
+          {!isFinal && (
+            <div style={{margin:"0 1rem 0.75rem",borderRadius:6,overflow:"hidden",border:`1px solid ${C.border}`}}>
+              {/* Column headers */}
+              <div style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr 1fr",background:C.header,borderBottom:`2px solid ${C.gold}`}}>
+                <div style={{padding:"0.4rem 0.5rem",fontSize:"0.58rem",letterSpacing:"0.1em",color:C.dim}}/>
+                {[
+                  {label:"MONEY LINE", sub:"home win prob"},
+                  {label:"RUN LINE", sub:"home -1.5 cover %"},
+                  {label:"OVER / UNDER", sub:`total ${vegasOUNum}`},
+                ].map(col => (
+                  <div key={col.label} style={{padding:"0.4rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:"0.6rem",letterSpacing:"0.1em",color:C.gold,fontWeight:"bold"}}>{col.label}</div>
+                    <div style={{fontSize:"0.55rem",color:C.dim,marginTop:1}}>{col.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* MODEL row */}
+              <div style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr 1fr",background:"rgba(201,168,76,0.04)",borderBottom:`1px solid ${C.border}`}}>
+                <div style={{padding:"0.55rem 0.5rem",display:"flex",alignItems:"center"}}>
+                  <span style={{fontSize:"0.65rem",fontWeight:"bold",letterSpacing:"0.08em",color:C.gold}}>MODEL</span>
+                </div>
+                {/* ML */}
+                <div style={{padding:"0.55rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                  <div style={{display:"flex",gap:"0.75rem",alignItems:"baseline",flexWrap:"wrap"}}>
+                    <span>
+                      <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.hTeam.id}</div>
+                      <div style={{fontSize:"0.9rem",fontWeight:"bold",color:mHWin>=50?C.green:C.text}}>{odds.modelML}</div>
+                      <div style={{fontSize:"0.6rem",color:C.muted}}>{mHWin}%</div>
+                    </span>
+                    <span>
+                      <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.aTeam.id}</div>
+                      <div style={{fontSize:"0.9rem",fontWeight:"bold",color:mAWin>=50?C.green:C.text}}>{odds.modelAML}</div>
+                      <div style={{fontSize:"0.6rem",color:C.muted}}>{mAWin}%</div>
+                    </span>
+                  </div>
+                </div>
+                {/* RL */}
+                <div style={{padding:"0.55rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                  {modelHRLProb != null ? (
+                    <div style={{display:"flex",gap:"0.75rem",alignItems:"baseline",flexWrap:"wrap"}}>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.hTeam.id} -1.5</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:modelHRLProb>=50?C.green:C.text}}>{toML(modelHRLProb/100)}</div>
+                        <div style={{fontSize:"0.6rem",color:C.muted}}>{modelHRLProb.toFixed(1)}%</div>
+                      </span>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.aTeam.id} +1.5</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:modelARLProb>=50?C.green:C.text}}>{toML(modelARLProb/100)}</div>
+                        <div style={{fontSize:"0.6rem",color:C.muted}}>{modelARLProb.toFixed(1)}%</div>
+                      </span>
+                    </div>
+                  ) : <span style={{fontSize:"0.75rem",color:C.dim}}>–</span>}
+                </div>
+                {/* O/U */}
+                <div style={{padding:"0.55rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                  <div style={{display:"flex",gap:"0.75rem",alignItems:"baseline",flexWrap:"wrap"}}>
+                    <span>
+                      <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>OVER</div>
+                      <div style={{fontSize:"0.9rem",fontWeight:"bold",color:overPctClamped>=55?C.green:overPctClamped<=45?C.red:C.text}}>{toML(overPctClamped/100)}</div>
+                      <div style={{fontSize:"0.6rem",color:C.muted}}>{overPctClamped}%</div>
+                    </span>
+                    <span>
+                      <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>UNDER</div>
+                      <div style={{fontSize:"0.9rem",fontWeight:"bold",color:underPctClamped>=55?C.green:underPctClamped<=45?C.red:C.text}}>{toML(underPctClamped/100)}</div>
+                      <div style={{fontSize:"0.6rem",color:C.muted}}>{underPctClamped}%</div>
+                    </span>
+                  </div>
+                  <div style={{fontSize:"0.6rem",color:C.dim,marginTop:"0.2rem"}}>
+                    proj {sim ? sim.hAvgRuns : "?"}–{sim ? sim.aAvgRuns : "?"} runs
+                  </div>
+                </div>
+              </div>
+
+              {/* VEGAS row */}
+              <div style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr 1fr",background:"rgba(93,200,122,0.03)"}}>
+                <div style={{padding:"0.55rem 0.5rem",display:"flex",alignItems:"center"}}>
+                  <span style={{fontSize:"0.65rem",fontWeight:"bold",letterSpacing:"0.08em",color:isVegas?C.green:C.dim}}>{isVegas?"VEGAS":"NO LINE"}</span>
+                </div>
+                {/* ML Vegas */}
+                <div style={{padding:"0.55rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                  {isVegas && odds.vegasML ? (
+                    <div style={{display:"flex",gap:"0.75rem",alignItems:"baseline",flexWrap:"wrap"}}>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.hTeam.id}</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.text}}>{odds.vegasML}</div>
+                        {vegasHWinPct && <div style={{fontSize:"0.6rem",color:C.muted}}>{vegasHWinPct}% imp</div>}
+                      </span>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.aTeam.id}</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.text}}>{odds.vegasAML}</div>
+                        {vegasAWinPct && <div style={{fontSize:"0.6rem",color:C.muted}}>{vegasAWinPct}% imp</div>}
+                      </span>
+                    </div>
+                  ) : <span style={{fontSize:"0.75rem",color:C.dim}}>No line</span>}
+                  {/* ML edge badge */}
+                  {mlEdgePp != null && Math.abs(mlEdgePp) >= 2 && (
+                    <div style={{marginTop:"0.3rem",display:"inline-block",fontSize:"0.62rem",fontWeight:"bold",padding:"0.08rem 0.35rem",borderRadius:4,
+                      background:mlEdgePp>0?"rgba(93,200,122,0.12)":"rgba(224,96,96,0.1)",
+                      color:mlEdgePp>0?C.green:C.red}}>
+                      {mlEdgePp>0?"▲":""}{mlEdgePp<0?"▼":""} {Math.abs(mlEdgePp)}pp edge {mlEdgePp>0?"(model likes home)":"(model likes away)"}
+                    </div>
+                  )}
+                </div>
+                {/* RL Vegas */}
+                <div style={{padding:"0.55rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                  {isVegas && odds.vegasHSpreadPt != null ? (
+                    <div style={{display:"flex",gap:"0.75rem",alignItems:"baseline",flexWrap:"wrap"}}>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.hTeam.id} {odds.vegasHSpreadPt>0?"+":""}{odds.vegasHSpreadPt}</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.text}}>{odds.vegasHSpreadPr}</div>
+                        {vegasHRLPct && <div style={{fontSize:"0.6rem",color:C.muted}}>{vegasHRLPct}% imp</div>}
+                      </span>
+                      {odds.vegasASpreadPt != null && (
+                        <span>
+                          <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>{odds.aTeam.id} {odds.vegasASpreadPt>0?"+":""}{odds.vegasASpreadPt}</div>
+                          <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.text}}>{odds.vegasASpreadPr}</div>
+                        </span>
+                      )}
+                    </div>
+                  ) : <span style={{fontSize:"0.75rem",color:C.dim}}>No line</span>}
+                  {rlEdgePp != null && Math.abs(rlEdgePp) >= 3 && (
+                    <div style={{marginTop:"0.3rem",display:"inline-block",fontSize:"0.62rem",fontWeight:"bold",padding:"0.08rem 0.35rem",borderRadius:4,
+                      background:rlEdgePp>0?"rgba(93,200,122,0.12)":"rgba(224,96,96,0.1)",
+                      color:rlEdgePp>0?C.green:C.red}}>
+                      {Math.abs(rlEdgePp)}pp RL edge {rlEdgePp>0?"(model RL home)":"(model RL away)"}
+                    </div>
+                  )}
+                </div>
+                {/* O/U Vegas */}
+                <div style={{padding:"0.55rem 0.6rem",borderLeft:`1px solid ${C.border}`}}>
+                  {isVegas && odds.vegasOU ? (
+                    <div style={{display:"flex",gap:"0.75rem",alignItems:"baseline",flexWrap:"wrap"}}>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>O {odds.vegasOU}</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.text}}>{odds.vegasOverPr}</div>
+                        {vegasOverPct && <div style={{fontSize:"0.6rem",color:C.muted}}>{vegasOverPct}% imp</div>}
+                      </span>
+                      <span>
+                        <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:1}}>U {odds.vegasOU}</div>
+                        <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.text}}>{odds.vegasUnderPr}</div>
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{fontSize:"0.6rem",color:C.dim,marginBottom:2}}>MODEL O/U</div>
+                      <div style={{fontSize:"0.9rem",fontWeight:"bold",color:C.muted}}>{odds.modelOU}</div>
+                    </div>
+                  )}
+                  {ouEdgePp != null && Math.abs(ouEdgePp) >= 3 && (
+                    <div style={{marginTop:"0.3rem",display:"inline-block",fontSize:"0.62rem",fontWeight:"bold",padding:"0.08rem 0.35rem",borderRadius:4,
+                      background:ouEdgePp>0?"rgba(93,200,122,0.12)":"rgba(224,96,96,0.1)",
+                      color:ouEdgePp>0?C.green:C.red}}>
+                      {Math.abs(ouEdgePp)}pp {ouEdgePp>0?"over":"under"} edge
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── BET BUTTONS + AI ── */}
+          <div style={{padding:"0 1rem 0.85rem",display:"flex",alignItems:"center",gap:"0.5rem",flexWrap:"wrap"}}>
+            <BB lbl={odds.aML} sub={`${odds.aTeam.id} ML`} act={hasBet(game.id,"aml")} dis={isFinal} onClick={()=>toggleBet(game.id,"aml",odds.aML,"ml")} hi={mAWin>55}/>
+            <BB lbl={odds.hML} sub={`${odds.hTeam.id} ML`} act={hasBet(game.id,"hml")} dis={isFinal} onClick={()=>toggleBet(game.id,"hml",odds.hML,"ml")} hi={mHWin>55}/>
+            {odds.vegasHSpreadPr && <BB lbl={odds.vegasHSpreadPr} sub={`${odds.hTeam.id} ${odds.vegasHSpreadPt}`} act={hasBet(game.id,"hrl")} dis={isFinal} onClick={()=>toggleBet(game.id,"hrl",`${odds.hTeam.id} ${odds.vegasHSpreadPt} (${odds.vegasHSpreadPr})`,"rl")} hi={modelHRLProb>55}/>}
+            {odds.vegasASpreadPr && <BB lbl={odds.vegasASpreadPr} sub={`${odds.aTeam.id} +${Math.abs(odds.vegasASpreadPt||1.5)}`} act={hasBet(game.id,"arl")} dis={isFinal} onClick={()=>toggleBet(game.id,"arl",`${odds.aTeam.id} +${Math.abs(odds.vegasASpreadPt||1.5)} (${odds.vegasASpreadPr})`,"rl")} hi={modelARLProb>55}/>}
+            {odds.vegasOverPr  && <BB lbl={odds.vegasOverPr}  sub={`O ${vegasOUNum}`} act={hasBet(game.id,"ovr")} dis={isFinal} onClick={()=>toggleBet(game.id,"ovr",`O${vegasOUNum} (${odds.vegasOverPr})`,"ou")}  hi={overPctClamped>55}/>}
+            {odds.vegasUnderPr && <BB lbl={odds.vegasUnderPr} sub={`U ${vegasOUNum}`} act={hasBet(game.id,"und")} dis={isFinal} onClick={()=>toggleBet(game.id,"und",`U${vegasOUNum} (${odds.vegasUnderPr})`,"ou")} hi={underPctClamped>55}/>}
+            <div style={{flex:1}}/>
+            <button onClick={()=>getAI(game)} style={{padding:"0.25rem 0.65rem",fontSize:"0.7rem",cursor:"pointer",fontFamily:"inherit",background:"rgba(201,168,76,0.1)",border:"1px solid rgba(201,168,76,0.3)",color:C.gold,borderRadius:4}}>AI TAKE</button>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  {selGame && (
+    <div style={{background:"rgba(201,168,76,0.05)",border:"1px solid rgba(201,168,76,0.22)",borderRadius:4,padding:"0.9rem 1.1rem",marginTop:"1.25rem"}}>
+      <div style={{fontSize:"0.62rem",letterSpacing:"0.14em",color:C.gold,marginBottom:"0.35rem"}}>
+        AI TAKE – {selGame.away} @ {selGame.home}
+      </div>
+      {aiLoad ? <Dots/> : <p style={{margin:0,lineHeight:1.75,fontSize:"0.86rem",color:"#c8c4b4"}}>{aiPick}</p>}
+    </div>
+  )}
+
+  {myBets.length > 0 && (
+    <div style={{background:C.header,border:`1px solid ${C.border}`,borderRadius:4,padding:"0.9rem 1.1rem",marginTop:"1.25rem"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.6rem"}}>
+        <span style={{fontSize:"0.73rem",color:C.gold}}>BET SLIP ({myBets.length})</span>
+        <button onClick={()=>setMyBets([])} style={{fontSize:"0.68rem",color:C.dim,background:"none",border:`1px solid ${C.border}`,borderRadius:2,padding:"0.18rem 0.45rem",cursor:"pointer",fontFamily:"inherit"}}>CLEAR</button>
+      </div>
+      {myBets.map((b,i) => {
+        const g = processed.find(g=>g.id===b.id);
+        const lbl = b.side==="hml" ? `${g?.odds.hTeam.name} ML`
+                  : b.side==="aml" ? `${g?.odds.aTeam.name} ML`
+                  : b.side==="hrl" ? `${g?.odds.hTeam.id} RL`
+                  : b.side==="arl" ? `${g?.odds.aTeam.id} RL +1.5`
+                  : b.side==="ovr" ? "OVER"
+                  : b.side==="und" ? "UNDER"
+                  : b.side;
+        return (
+          <div key={i} style={{display:"flex",justifyContent:"space-between",background:C.surface,borderRadius:3,padding:"0.4rem 0.7rem",border:`1px solid ${C.border}`,marginBottom:3}}>
+            <span style={{fontSize:"0.8rem"}}>{lbl}</span>
+            <div style={{display:"flex",gap:"0.6rem",alignItems:"center"}}>
+              <span style={{color:C.gold,fontWeight:"bold",fontSize:"0.8rem"}}>{b.line}</span>
+              <button onClick={()=>toggleBet(b.id,b.side,b.line,b.type)} style={{background:"none",border:"none",color:C.dim,cursor:"pointer",fontSize:"0.65rem"}}>✕</button>
+            </div>
+          </div>
+        );
+      })}
+      <div style={{marginTop:"0.6rem",fontSize:"0.7rem",color:C.dim,padding:"0.4rem 0.6rem",background:"rgba(201,168,76,0.05)",borderRadius:3}}>
+        Research only. Not real wagering. Gamble responsibly.
+      </div>
+    </div>
+  )}
+</div>
+```
+
+);
+}
+
+function BB({lbl,sub,act,dis,hi,onClick}){
+return (
+<button onClick={!dis?onClick:undefined} style={{padding:“0.25rem 0.6rem”,borderRadius:3,cursor:dis?“default”:“pointer”,fontFamily:“inherit”,textAlign:“center”,minWidth:70,background:act?“rgba(201,168,76,0.2)”:hi?“rgba(93,200,122,0.06)”:C.bg,border:`1px solid ${act?C.gold:hi?"rgba(93,200,122,0.4)":C.border}`,opacity:dis?0.5:1,transition:“all 0.12s”}}>
+<div style={{fontSize:“0.78rem”,fontWeight:“bold”,color:act?C.gold:hi?C.green:C.text}}>{lbl}</div>
+<div style={{fontSize:“0.56rem”,color:C.dim,letterSpacing:“0.06em”}}>{sub}</div>
+</button>
+);
+}
+
+// ———————————————————
+// PREDICTION STORAGE + CALIBRATION
+// ———————————————————
+const H2H_KEY = “mlb_h2h”;
+
+function h2hKey(t1, t2) { return [t1, t2].sort().join(”|”); }
+
+async function loadH2H() {
+try {
+const s = localGet(H2H_KEY);
+if (s && s.value) return JSON.parse(s.value);
+} catch {}
+return {};
+}
+
+async function saveH2H(data) {
+try { localSet(H2H_KEY, JSON.stringify(data)); } catch {}
+}
+
+async function recordH2H(home, away, homeWon) {
+const data  = await loadH2H();
+const key   = h2hKey(home, away);
+const first = key.split(”|”)[0];
+if (!data[key]) data[key] = { t1: first, t2: key.split(”|”)[1], t1W: 0, t2W: 0, games: [] };
+const rec = data[key];
+if (first === home) { if (homeWon) rec.t1W++; else rec.t2W++; }
+else { if (homeWon) rec.t2W++; else rec.t1W++; }
+rec.games.push({ home, away, homeWon, ts: Date.now() });
+if (rec.games.length > 20) rec.games = rec.games.slice(-20);
+data[key] = rec;
+await saveH2H(data);
+}
+
+function getH2HRecord(homeTeamId, awayTeamId, h2hData, minGames = 4) {
+const key   = h2hKey(homeTeamId, awayTeamId);
+const rec   = h2hData[key];
+if (!rec) return null;
+const total = rec.t1W + rec.t2W;
+if (total < minGames) return null;
+const first = key.split(”|”)[0];
+const teamW = first === homeTeamId ? rec.t1W : rec.t2W;
+const oppW  = total - teamW;
+return { teamWins: teamW, oppWins: oppW, total, teamWinRate: teamW / total };
+}
+
+function applyH2HAdj(rawProb, homeId, awayId, h2hData) {
+const rec = getH2HRecord(homeId, awayId, h2hData, 4);
+if (!rec) return { prob: rawProb, h2hAdj: 0, h2hRecord: null };
+const blended = rawProb * 0.88 + rec.teamWinRate * 0.12;
+const clamped = Math.max(0.05, Math.min(0.95, blended));
+return { prob: clamped, h2hAdj: +(clamped - rawProb).toFixed(3), h2hRecord: rec };
+}
+
+const PRED_KEY = “mlb_predictions”;
+const MAX_PREDS = 500;
+
+const HISTORICAL_CALIB_PRIORS = [
+{ label:“50-55%”, min:0.50, max:0.55, midpoint:0.525, actualRate:0.528, n:4200 },
+{ label:“55-60%”, min:0.55, max:0.60, midpoint:0.575, actualRate:0.569, n:3800 },
+{ label:“60-65%”, min:0.60, max:0.65, midpoint:0.625, actualRate:0.608, n:2400 },
+{ label:“65-70%”, min:0.65, max:0.70, midpoint:0.675, actualRate:0.641, n:1200 },
+{ label:“70%+”,   min:0.70, max:1.00, midpoint:0.750, actualRate:0.694, n:550  },
+];
+
+async function loadPredictions() {
+try {
+const s = localGet(PRED_KEY);
+if (s && s.value) return JSON.parse(s.value);
+} catch {}
+return { predictions: [] };
+}
+
+async function savePredictions(data) {
+try {
+if (data.predictions.length > MAX_PREDS) data.predictions = data.predictions.slice(-MAX_PREDS);
+localSet(PRED_KEY, JSON.stringify(data));
+} catch {}
+}
+
+async function recordPrediction(gameId, home, away, hWinPct, modelOU) {
+const data = await loadPredictions();
+if (data.predictions.find(p => p.id === gameId)) return;
+data.predictions.push({ id: gameId, home, away, predictedAt: Date.now(),
+hWinPct: parseFloat(hWinPct) / 100, modelOU: parseFloat(modelOU), outcome: null });
+await savePredictions(data);
+}
+
+async function settlePrediction(gameId, homeWon, actualTotal) {
+const data = await loadPredictions();
+const pred = data.predictions.find(p => p.id === gameId);
+if (!pred || pred.outcome) return;
+pred.outcome = { homeWon, actualTotal, settledAt: Date.now() };
+await savePredictions(data);
+}
+
+function computeCalibration(predictions) {
+const settled = predictions.filter(p => p.outcome != null);
+const liveBuckets = {};
+let correct = 0, brierSum = 0;
+
+for (const p of settled) {
+const favHome = p.hWinPct >= 0.5;
+const favWon  = favHome ? p.outcome.homeWon : !p.outcome.homeWon;
+const favProb = favHome ? p.hWinPct : (1 - p.hWinPct);
+if (favWon) correct++;
+brierSum += Math.pow(p.hWinPct - (p.outcome.homeWon ? 1 : 0), 2);
+for (const prior of HISTORICAL_CALIB_PRIORS) {
+if (favProb >= prior.min && favProb < prior.max) {
+if (!liveBuckets[prior.label]) liveBuckets[prior.label] = { wins:0, n:0 };
+liveBuckets[prior.label].n++;
+if (favWon) liveBuckets[prior.label].wins++;
+break;
+}
+}
+}
+
+const calibration = HISTORICAL_CALIB_PRIORS.map(prior => {
+const live = liveBuckets[prior.label] || { wins:0, n:0 };
+const totalN = prior.n + live.n;
+const blendedRate = (prior.n * prior.actualRate + live.n * (live.n > 0 ? live.wins/live.n : prior.actualRate)) / totalN;
+const correction = Math.max(0.5, Math.min(2.0, blendedRate / prior.midpoint));
+return { label:prior.label, min:prior.min, max:prior.max, midpoint:prior.midpoint,
+n:live.n, priorN:prior.n, actualRate:blendedRate,
+liveRate: live.n > 0 ? live.wins/live.n : null, priorRate:prior.actualRate, correction };
+});
+
+return {
+total: settled.length,
+accuracy: settled.length > 0 ? correct / settled.length : null,
+brierScore: settled.length > 0 ? brierSum / settled.length : null,
+calibration, settled,
+};
+}
+
+function applyCalibration(rawProb, calibrationBuckets) {
+const buckets = calibrationBuckets || HISTORICAL_CALIB_PRIORS.map(p => ({
+…p, n: p.n, correction: Math.max(0.5, Math.min(2.0, p.actualRate / p.midpoint)),
+}));
+const favProb = rawProb >= 0.5 ? rawProb : 1 - rawProb;
+const bucket  = buckets.find(b => favProb >= b.min && favProb < b.max);
+if (!bucket) return rawProb;
+const corrected = favProb * bucket.correction;
+const clamped   = Math.max(0.05, Math.min(0.95, corrected));
+return rawProb >= 0.5 ? clamped : 1 - clamped;
+}
+
+// ———————————————————
+// MODEL PERFORMANCE PAGE
+// ———————————————————
+function ModelPerfPage() {
+const [perfData, setPerfData]   = useState(null);
+const [metrics, setMetrics]     = useState(null);
+const [loading, setLoading]     = useState(true);
+const [h2hStore, setH2hStore]   = useState({});
+
+useEffect(() => {
+async function load() {
+setLoading(true);
+const data = await loadPredictions();
+setPerfData(data);
+const m = computeCalibration(data.predictions);
+setMetrics(m);
+const h2h = await loadH2H();
+setH2hStore(h2h);
+setLoading(false);
+}
+load();
+}, []);
+
+const settled = perfData?.predictions.filter(p => p.outcome) || [];
+const pending = perfData?.predictions.filter(p => !p.outcome) || [];
+
+if (loading) return <div style={{padding:“3rem”,textAlign:“center”,color:C.muted}}>Loading…</div>;
+
+return (
+<div style={{padding:“1.5rem”}}>
+<SectionHeader>MODEL PERFORMANCE</SectionHeader>
+
+```
+  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"0.7rem",marginBottom:"1.25rem"}}>
+    {[
+      { l:"Predictions", v: perfData?.predictions.length || 0, s:"recorded" },
+      { l:"Settled", v: settled.length, s:"outcomes confirmed" },
+      { l:"Pending", v: pending.length, s:"awaiting result" },
+      { l:"ML Accuracy", v: metrics?.accuracy ? (metrics.accuracy*100).toFixed(1)+"%" : "--", s:`${settled.length} games`, color: metrics?.accuracy ? (metrics.accuracy>=0.57?C.green:metrics.accuracy>=0.52?C.gold:C.red) : C.muted },
+    ].map(s => (
+      <div key={s.l} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:3,padding:"0.9rem 1rem"}}>
+        <div style={{fontSize:"0.62rem",color:C.dim,letterSpacing:"0.1em",marginBottom:3}}>{s.l}</div>
+        <div style={{fontSize:"1.35rem",fontWeight:"bold",color:s.color||C.gold}}>{s.v}</div>
+        <div style={{fontSize:"0.65rem",color:C.dim,marginTop:3}}>{s.s}</div>
+      </div>
+    ))}
+  </div>
+
+  {metrics && metrics.calibration && (
+    <>
+      <SectionHeader>CALIBRATION</SectionHeader>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:"1.25rem",marginBottom:"1.5rem"}}>
+        <div style={{display:"flex",gap:"0.75rem",alignItems:"flex-end",height:130,marginBottom:"0.5rem"}}>
+          {metrics.calibration.map(b => {
+            const predH = b.midpoint * 100;
+            const actH  = b.actualRate * 100;
+            return (
+              <div key={b.label} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                <div style={{width:"100%",position:"relative",height:108,display:"flex",alignItems:"flex-end",gap:2}}>
+                  <div style={{flex:1,background:"rgba(201,168,76,0.3)",border:"1px solid rgba(201,168,76,0.4)",borderRadius:"2px 2px 0 0",height:`${predH}%`}}/>
+                  <div style={{flex:1,background:b.actualRate>b.midpoint?"rgba(93,200,122,0.6)":"rgba(224,96,96,0.5)",borderRadius:"2px 2px 0 0",height:`${actH}%`}}/>
+                </div>
+                <div style={{fontSize:"0.6rem",color:C.dim,textAlign:"center"}}>{b.label}</div>
+                <div style={{fontSize:"0.58rem",color:C.dim}}>n={b.n}+{b.priorN.toLocaleString()}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{display:"flex",gap:"1rem",fontSize:"0.65rem",color:C.dim,justifyContent:"center"}}>
+          <span style={{display:"flex",alignItems:"center",gap:"0.3rem"}}><div style={{width:10,height:10,background:"rgba(201,168,76,0.4)",borderRadius:1}}/> Predicted</span>
+          <span style={{display:"flex",alignItems:"center",gap:"0.3rem"}}><div style={{width:10,height:10,background:"rgba(93,200,122,0.6)",borderRadius:1}}/> Actual (blended w/ 5yr prior)</span>
+        </div>
+      </div>
+    </>
+  )}
+
+  {settled.length > 0 && (
+    <>
+      <SectionHeader>RECENT SETTLED</SectionHeader>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,overflow:"hidden",marginBottom:"1.25rem"}}>
+        {[...settled].reverse().slice(0,10).map((p,i) => {
+          const favHome = p.hWinPct >= 0.5;
+          const favWon  = favHome ? p.outcome.homeWon : !p.outcome.homeWon;
+          return (
+            <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr 1fr",borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.016)"}}>
+              <div style={{padding:"0.5rem 0.7rem",fontSize:"0.72rem",textAlign:"center"}}>{p.home}</div>
+              <div style={{padding:"0.5rem 0.7rem",fontSize:"0.72rem",textAlign:"center"}}>{p.away}</div>
+              <div style={{padding:"0.5rem 0.7rem",fontSize:"0.72rem",color:C.muted,textAlign:"center"}}>
+                {favHome ? p.home : p.away} {((favHome?p.hWinPct:1-p.hWinPct)*100).toFixed(0)}%
+              </div>
+              <div style={{padding:"0.5rem 0.7rem",fontSize:"0.72rem",textAlign:"center",fontWeight:"bold",color:favWon?C.green:C.red}}>
+                {favWon ? "HIT" : "MISS"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  )}
+
+  <div style={{display:"flex",justifyContent:"flex-end"}}>
+    <button onClick={async()=>{await savePredictions({predictions:[]});setPerfData({predictions:[]});setMetrics(null);}} style={{fontSize:"0.72rem",color:C.red,background:"none",border:`1px solid rgba(224,96,96,0.3)`,borderRadius:3,padding:"0.35rem 0.85rem",cursor:"pointer",fontFamily:"inherit"}}>
+      Clear History
+    </button>
+  </div>
+</div>
+```
+
+);
+}
+
+// ———————————————————
+// METHODOLOGY
+// ———————————————————
+function MethodologyPage(){
+const items=[
+{t:“Data Source”,b:“Scores and standings come from the MLB Stats API via Claude’s web search tool. Data refreshes every 5 minutes. ERA, OPS, WHIP and other advanced stats use pre-season projections blended with live data as the season progresses.”},
+{t:“Power Rating Model”,b:“Each team has three component ratings: Offensive (40%), Defensive/Pitching (40%), and Starting Pitcher (20%). These start from pre-season projections and blend toward live statistics as games are played.”},
+{t:“Blending Formula”,b:“liveWeight = min(40%, gamesPlayed / 162 × 1.5). At 0 games the model is 100% baseline. At 43+ games it reaches the 40% live cap. This prevents overreaction to early-season variance.”},
+{t:“Poisson Monte Carlo Simulation”,b:“Win probabilities come from 10,000 simulated games using Poisson-distributed run scoring. Each team’s expected runs per inning is derived from their offensive and defensive stats, park factor, and starting pitcher tier. The simulation produces not just win probability but also run line cover % and over/under probability.”},
+{t:“Elo Rating System”,b:“A margin-of-victory weighted Elo system tracks team quality game-by-game. Blowout wins count more (log-scaled), rewarding teams that don’t just win but dominate. This Elo rating blends into the final power rating at 5% weight.”},
+{t:“Calibration”,b:“Historical calibration priors from 12,150 MLB games (2021-2025) correct for systematic overconfidence. These blend with live predictions using Bayesian updating, so the model is calibrated from game one of the season.”},
+];
+return(
+<div style={{padding:“1.5rem”,maxWidth:740}}>
+<SectionHeader>METHODOLOGY</SectionHeader>
+{items.map(s=><div key={s.t} style={{marginBottom:“1.4rem”,paddingBottom:“1.4rem”,borderBottom:`1px solid ${C.border}`}}><div style={{fontWeight:“bold”,color:C.goldLight,marginBottom:“0.35rem”,fontSize:“0.92rem”}}>{s.t}</div><p style={{margin:0,lineHeight:1.8,fontSize:“0.84rem”,color:C.muted}}>{s.b}</p></div>)}
+</div>
+);
+}
+
+// ———————————————————
+// Shared components
+// ———————————————————
+function SectionHeader({children}){
+return(
+<div style={{marginBottom:“1.1rem”}}>
+<div style={{fontSize:“0.92rem”,fontWeight:“bold”,letterSpacing:“0.06em”,color:C.text,display:“flex”,alignItems:“center”,gap:“0.45rem”,flexWrap:“wrap”}}>{children}</div>
+<div style={{height:2,background:C.gold,width:36,marginTop:4,borderRadius:1}}/>
+</div>
+);
+}
+
+function LiveBadge(){
+const {lastRefresh,loading}=useLive();
+return (
+<span style={{fontSize:“0.58rem”,letterSpacing:“0.1em”,padding:“0.12rem 0.42rem”,borderRadius:10,background:loading?“rgba(201,168,76,0.1)”:“rgba(93,200,122,0.1)”,border:`1px solid ${loading?"rgba(201,168,76,0.3)":"rgba(93,200,122,0.3)"}`,color:loading?C.gold:C.green,verticalAlign:“middle”}}>{loading?“UPDATING”:“LIVE”}</span>
+);
+}
+
+function Dots(){
+return (
+<div style={{display:“flex”,gap:“0.25rem”,alignItems:“center”}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:“50%”,background:C.gold,animation:“pulse 1.2s infinite”,animationDelay:`${i*0.2}s`}}/>)}</div>
+);
+}
+
+function Ctrl({label,children}){
+return (
+<div><div style={{fontSize:“0.68rem”,color:C.dim,letterSpacing:“0.1em”,marginBottom:3}}>{label}</div>{children}</div>
+);
+}
+
+function TeamBadge({team}){
+return (
+<div style={{display:“flex”,alignItems:“center”,justifyContent:“center”,gap:“0.4rem”}}>
+<div style={{width:26,height:26,borderRadius:“50%”,background:team.color}}/>
+<span style={{fontSize:“0.82rem”,fontWeight:500}}>{team.name}</span>
+</div>
+);
+}
+
+const ss={width:“100%”,padding:“0.42rem 0.7rem”,background:”#1c1c1c”,border:`1px solid ${C.border}`,borderRadius:3,color:C.text,fontSize:“0.83rem”,fontFamily:“inherit”,cursor:“pointer”,outline:“none”};
+const th={padding:“0.6rem 0.8rem”,textAlign:“center”,fontSize:“0.7rem”,letterSpacing:“0.1em”,color:C.muted,fontWeight:“bold”,whiteSpace:“nowrap”};
+
+// ─── MOUNT ────────────────────────────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById(‘root’));
+root.render(React.createElement(window.__mlbBootstrap));
+</script>
+
+</body>
+</html>
